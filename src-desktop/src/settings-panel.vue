@@ -1,0 +1,461 @@
+<!--
+  桌外鼠标 - 电脑端设置面板（对应 PRD 7.5）
+
+  功能：
+   - 鼠标灵敏度 / 加速度
+   - 竖向 / 横向滚动灵敏度
+   - 边缘持续移动速度
+   - 点击 / 长按 / 双击判定时间
+   - 双指 / 三指手势 / 拖拽 / 实时输入开关
+   - 服务端口（仅展示，首版自动）
+   - 主题模式
+   - 重置默认
+
+  数据流：
+   - 挂载时通过 otm.getSettings() 拉取当前设置
+   - 订阅 otm.onSettings 接收主进程推送（变更后回填，保持与主进程一致）
+   - 用户改动即时通过 otm.updateSettings(patch) 提交（主进程落盘并下发控制层）
+-->
+<script setup>
+import { reactive, onMounted, watch } from 'vue'
+
+// visible 通过模板使用，无需在 script 中引用 props 变量
+defineProps({
+  // 是否显示
+  visible: { type: Boolean, default: false }
+})
+const emit = defineEmits(['close'])
+
+const otm = typeof window !== 'undefined' ? window.otm : undefined
+
+// 本地表单状态（与主进程 settings 同步）
+const form = reactive({
+  mouseSensitivity: 'medium',
+  mouseAcceleration: true,
+  verticalScrollSensitivity: 'medium',
+  horizontalScrollSensitivity: 'medium',
+  edgeMoveSpeed: 'medium',
+  clickThreshold: 200,
+  longPressThreshold: 500,
+  doubleClickInterval: 300,
+  enableTwoFingerGesture: true,
+  enableThreeFingerGesture: true,
+  enableDrag: true,
+  enableRealtimeInput: true,
+  serverPort: 'auto',
+  themeMode: 'system'
+})
+
+// 标记是否正在用主进程推送回填，避免回填触发 watch 又提交一次
+let syncing = false
+
+// 灵敏度可选项
+const sensitivityOptions = [
+  { value: 'low', label: '低' },
+  { value: 'medium', label: '中' },
+  { value: 'high', label: '高' }
+]
+const themeOptions = [
+  { value: 'system', label: '跟随系统' },
+  { value: 'light', label: '浅色' },
+  { value: 'dark', label: '深色' }
+]
+
+/**
+ * 用主进程返回的完整设置回填表单
+ */
+function applySettings(data) {
+  if (!data || typeof data !== 'object') return
+  syncing = true
+  Object.keys(form).forEach(key => {
+    if (key in data) form[key] = data[key]
+  })
+  // 下个微任务后解除 syncing 标志，让后续用户改动能正常提交
+  Promise.resolve().then(() => {
+    syncing = false
+  })
+}
+
+// 监听表单变化，用户改动时即时提交（syncing 期间的回填不提交）
+watch(
+  form,
+  () => {
+    if (syncing) return
+    if (otm) otm.updateSettings({ ...form })
+  },
+  { deep: true }
+)
+
+/** 重置为默认设置 */
+function handleReset() {
+  if (otm) otm.resetSettings()
+}
+
+onMounted(async () => {
+  if (!otm) return
+  // 拉取初始设置
+  const data = await otm.getSettings()
+  applySettings(data)
+  // 订阅主进程推送（重置 / 其他途径变更时同步）
+  otm.onSettings(next => applySettings(next))
+})
+</script>
+
+<template>
+  <transition name="slide">
+    <div
+      v-if="visible"
+      class="settings-mask"
+      @click.self="emit('close')"
+    >
+      <div class="settings-panel">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            设置
+          </h2>
+          <button
+            class="btn-close"
+            @click="emit('close')"
+          >
+            ×
+          </button>
+        </div>
+
+        <div class="panel-body">
+          <!-- 鼠标 -->
+          <section class="group">
+            <h3 class="group-title">
+              鼠标
+            </h3>
+            <div class="row">
+              <label class="row-label">鼠标灵敏度</label>
+              <select
+                v-model="form.mouseSensitivity"
+                class="select"
+              >
+                <option
+                  v-for="o in sensitivityOptions"
+                  :key="o.value"
+                  :value="o.value"
+                >
+                  {{ o.label }}
+                </option>
+              </select>
+            </div>
+            <div class="row">
+              <label class="row-label">鼠标加速度</label>
+              <input
+                v-model="form.mouseAcceleration"
+                type="checkbox"
+                class="checkbox"
+              >
+            </div>
+          </section>
+
+          <!-- 滚动 -->
+          <section class="group">
+            <h3 class="group-title">
+              滚动
+            </h3>
+            <div class="row">
+              <label class="row-label">竖向滚动灵敏度</label>
+              <select
+                v-model="form.verticalScrollSensitivity"
+                class="select"
+              >
+                <option
+                  v-for="o in sensitivityOptions"
+                  :key="o.value"
+                  :value="o.value"
+                >
+                  {{ o.label }}
+                </option>
+              </select>
+            </div>
+            <div class="row">
+              <label class="row-label">横向滚动灵敏度</label>
+              <select
+                v-model="form.horizontalScrollSensitivity"
+                class="select"
+              >
+                <option
+                  v-for="o in sensitivityOptions"
+                  :key="o.value"
+                  :value="o.value"
+                >
+                  {{ o.label }}
+                </option>
+              </select>
+            </div>
+            <div class="row">
+              <label class="row-label">边缘持续移动速度</label>
+              <select
+                v-model="form.edgeMoveSpeed"
+                class="select"
+              >
+                <option
+                  v-for="o in sensitivityOptions"
+                  :key="o.value"
+                  :value="o.value"
+                >
+                  {{ o.label }}
+                </option>
+              </select>
+            </div>
+          </section>
+
+          <!-- 触控判定 -->
+          <section class="group">
+            <h3 class="group-title">
+              触控判定
+            </h3>
+            <div class="row">
+              <label class="row-label">点击判定时间 {{ form.clickThreshold }}ms</label>
+            </div>
+            <input
+              v-model.number="form.clickThreshold"
+              type="range"
+              min="100"
+              max="400"
+              step="10"
+              class="range"
+            >
+            <div class="row">
+              <label class="row-label">长按判定时间 {{ form.longPressThreshold }}ms</label>
+            </div>
+            <input
+              v-model.number="form.longPressThreshold"
+              type="range"
+              min="300"
+              max="1000"
+              step="50"
+              class="range"
+            >
+            <div class="row">
+              <label class="row-label">双击间隔 {{ form.doubleClickInterval }}ms</label>
+            </div>
+            <input
+              v-model.number="form.doubleClickInterval"
+              type="range"
+              min="200"
+              max="500"
+              step="10"
+              class="range"
+            >
+          </section>
+
+          <!-- 功能开关 -->
+          <section class="group">
+            <h3 class="group-title">
+              功能开关
+            </h3>
+            <div class="row">
+              <label class="row-label">启用双指手势</label>
+              <input
+                v-model="form.enableTwoFingerGesture"
+                type="checkbox"
+                class="checkbox"
+              >
+            </div>
+            <div class="row">
+              <label class="row-label">启用三指手势</label>
+              <input
+                v-model="form.enableThreeFingerGesture"
+                type="checkbox"
+                class="checkbox"
+              >
+            </div>
+            <div class="row">
+              <label class="row-label">启用拖拽</label>
+              <input
+                v-model="form.enableDrag"
+                type="checkbox"
+                class="checkbox"
+              >
+            </div>
+            <div class="row">
+              <label class="row-label">启用实时输入</label>
+              <input
+                v-model="form.enableRealtimeInput"
+                type="checkbox"
+                class="checkbox"
+              >
+            </div>
+          </section>
+
+          <!-- 外观与服务 -->
+          <section class="group">
+            <h3 class="group-title">
+              外观与服务
+            </h3>
+            <div class="row">
+              <label class="row-label">主题模式</label>
+              <select
+                v-model="form.themeMode"
+                class="select"
+              >
+                <option
+                  v-for="o in themeOptions"
+                  :key="o.value"
+                  :value="o.value"
+                >
+                  {{ o.label }}
+                </option>
+              </select>
+            </div>
+            <div class="row">
+              <label class="row-label">服务端口</label>
+              <span class="readonly-value">{{ form.serverPort === 'auto' ? '自动（8765）' : form.serverPort }}</span>
+            </div>
+          </section>
+
+          <button
+            class="btn-reset"
+            @click="handleReset"
+          >
+            恢复默认设置
+          </button>
+        </div>
+      </div>
+    </div>
+  </transition>
+</template>
+
+<style scoped>
+.settings-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 60;
+}
+
+.settings-panel {
+  width: 100%;
+  max-width: 360px;
+  height: 100%;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.panel-title {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.btn-close {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 20px 24px;
+}
+
+.group {
+  padding: 16px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.group:last-of-type {
+  border-bottom: none;
+}
+
+.group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  margin: 0 0 12px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+}
+
+.row-label {
+  font-size: 14px;
+  color: #374151;
+}
+
+.select {
+  padding: 4px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+}
+
+.checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.range {
+  width: 100%;
+  margin: 4px 0 12px;
+}
+
+.readonly-value {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.btn-reset {
+  width: 100%;
+  margin-top: 16px;
+  padding: 10px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff;
+  color: #dc2626;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-reset:hover {
+  background: #fef2f2;
+}
+
+/* 侧滑动画 */
+.slide-enter-active,
+.slide-leave-active {
+  transition: opacity 0.2s;
+}
+
+.slide-enter-active .settings-panel,
+.slide-leave-active .settings-panel {
+  transition: transform 0.25s ease;
+}
+
+.slide-enter-from,
+.slide-leave-to {
+  opacity: 0;
+}
+
+.slide-enter-from .settings-panel,
+.slide-leave-to .settings-panel {
+  transform: translateX(100%);
+}
+</style>

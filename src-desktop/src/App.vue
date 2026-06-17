@@ -16,6 +16,7 @@
 -->
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import SettingsPanel from './settings-panel.vue'
 
 // preload 通过 contextBridge 暴露的 API；非 Electron 环境（纯浏览器预览）下可能为空
 const otm = typeof window !== 'undefined' ? window.otm : undefined
@@ -37,6 +38,9 @@ const connectRequest = ref(null)
 // —— 错误提示 ——
 const errorMessage = ref('')
 let errorTimer = null
+
+// —— 设置面板显隐 ——
+const showSettings = ref(false)
 
 // 状态文案映射
 const statusTextMap = {
@@ -165,12 +169,21 @@ onMounted(() => {
       <h1 class="title">
         桌外鼠标
       </h1>
-      <span
-        class="status-badge"
-        :class="connectionStatus"
-      >
-        {{ statusTextMap[connectionStatus] }}
-      </span>
+      <div class="header-actions">
+        <button
+          class="btn-settings"
+          title="设置"
+          @click="showSettings = true"
+        >
+          设置
+        </button>
+        <span
+          class="status-badge"
+          :class="connectionStatus"
+        >
+          {{ statusTextMap[connectionStatus] }}
+        </span>
+      </div>
     </header>
 
     <!-- 主区域：二维码与连接地址 -->
@@ -276,6 +289,12 @@ onMounted(() => {
         </div>
       </div>
     </transition>
+
+    <!-- 设置面板（侧滑） -->
+    <SettingsPanel
+      :visible="showSettings"
+      @close="showSettings = false"
+    />
   </div>
 </template>
 
@@ -334,6 +353,26 @@ onMounted(() => {
   font-size: 13px;
   background: #e5e7eb;
   color: #6b7280;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-settings {
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.btn-settings:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
 }
 
 .status-badge.waiting {
