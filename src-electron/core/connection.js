@@ -34,11 +34,40 @@ const ConnectionState = {
 // DISCONNECTED 状态停留时长，之后自动回到 IDLE（让 GUI 有时间显示"已断开"）
 const DISCONNECTED_HOLD_MS = 1500
 
+/**
+ * 从 HTTP 请求头 User-Agent 解析简易设备名（任务1，PRD 7.1 P1 #45）
+ *
+ * 降级方案：不修改 ws-server 握手协议，直接用 req.headers['user-agent'] 做粗略解析。
+ * 浏览器 UA 含手机型号/平台特征，能给出如 "iPhone Safari" / "Android Chrome" 的可读名称。
+ * 这不是精确设备名（精确名需手机端主动上报，要改协议），仅用于 GUI 展示区分。
+ *
+ * @param {string} [ua] User-Agent 字符串
+ * @returns {string} 简易设备名（解析失败返回 '未知设备'）
+ */
+function parseDeviceName(ua) {
+  if (!ua || typeof ua !== 'string') return '未知设备'
+  const lower = ua.toLowerCase()
+  // 平台判定（顺序：iPhone → iPad → Android → Mac → Windows → 其它）
+  let platform = '设备'
+  if (lower.includes('iphone')) platform = 'iPhone'
+  else if (lower.includes('ipad')) platform = 'iPad'
+  else if (lower.includes('android')) platform = 'Android'
+  else if (lower.includes('mac os')) platform = 'Mac'
+  else if (lower.includes('windows')) platform = 'Windows'
+  // 浏览器判定（顺序：Edge → Chrome → Firefox → Safari → 其它）
+  let browser = ''
+  if (lower.includes('edg/')) browser = 'Edge'
+  else if (lower.includes('chrome') || lower.includes('crios')) browser = 'Chrome'
+  else if (lower.includes('firefox') || lower.includes('fxios')) browser = 'Firefox'
+  else if (lower.includes('safari')) browser = 'Safari'
+  return browser ? `${platform} ${browser}` : platform
+}
+
 class ConnectionManager extends EventEmitter {
   constructor() {
     super()
     this.state = ConnectionState.IDLE
-    this.device = null // { ip, connectedAt } 已连接设备信息
+    this.device = null // { ip, deviceName, connectedAt } 已连接设备信息
     // 等待用户确认时的 Promise resolve 函数
     this.pendingResolve = null
     // 心跳定时器
@@ -86,6 +115,8 @@ class ConnectionManager extends EventEmitter {
 
     const clientInfo = {
       ip: req && req.socket ? req.socket.remoteAddress : null,
+      // 设备名：从 User-Agent 粗略解析（任务1），便于 GUI 展示区分手机
+      deviceName: parseDeviceName(req && req.headers ? req.headers['user-agent'] : null),
       requestedAt: Date.now()
     }
 
@@ -106,6 +137,8 @@ class ConnectionManager extends EventEmitter {
     }
     const device = {
       ip: this.device ? this.device.ip : null,
+      // 透传 WAITING 阶段解析到的设备名到已连接设备信息（任务1）
+      deviceName: this.device ? this.device.deviceName : null,
       connectedAt: Date.now()
     }
     this.setState(ConnectionState.CONNECTED, device)

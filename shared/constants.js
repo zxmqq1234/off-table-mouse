@@ -30,6 +30,8 @@ module.exports = {
     enableDrag: true,
     enableRealtimeInput: true,
     serverPort: 'auto',
-    themeMode: 'system'
+    themeMode: 'system',
+    // 关闭窗口时最小化到系统托盘（任务6，PRD P1 #54）；默认开启
+    minimizeToTray: true
   }
 }

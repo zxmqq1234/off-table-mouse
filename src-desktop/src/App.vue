@@ -17,6 +17,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import SettingsPanel from './settings-panel.vue'
+import LogPanel from './log-panel.vue'
 
 // preload 通过 contextBridge 暴露的 API；非 Electron 环境（纯浏览器预览）下可能为空
 const otm = typeof window !== 'undefined' ? window.otm : undefined
@@ -41,6 +42,8 @@ let errorTimer = null
 
 // —— 设置面板显隐 ——
 const showSettings = ref(false)
+// —— 日志面板显隐 ——
+const showLogs = ref(false)
 
 // 状态文案映射
 const statusTextMap = {
@@ -172,6 +175,13 @@ onMounted(() => {
       <div class="header-actions">
         <button
           class="btn-settings"
+          title="连接日志"
+          @click="showLogs = true"
+        >
+          日志
+        </button>
+        <button
+          class="btn-settings"
           title="设置"
           @click="showSettings = true"
         >
@@ -229,11 +239,11 @@ onMounted(() => {
     <footer class="footer">
       <div class="device-info">
         <template v-if="isConnected && deviceInfo">
-          <span>已连接：{{ deviceInfo.ip || '未知 IP' }}</span>
+          <span>已连接：{{ deviceInfo.deviceName || deviceInfo.ip || '未知设备' }}</span>
           <span class="muted"> · {{ formatTime(deviceInfo.connectedAt) }}</span>
         </template>
         <template v-else-if="connectionStatus === 'waiting' && deviceInfo">
-          <span>请求来自：{{ deviceInfo.ip || '未知 IP' }}</span>
+          <span>请求来自：{{ deviceInfo.deviceName || deviceInfo.ip || '未知设备' }}</span>
         </template>
         <span
           v-else
@@ -294,6 +304,12 @@ onMounted(() => {
     <SettingsPanel
       :visible="showSettings"
       @close="showSettings = false"
+    />
+
+    <!-- 日志面板（侧滑） -->
+    <LogPanel
+      :visible="showLogs"
+      @close="showLogs = false"
     />
   </div>
 </template>

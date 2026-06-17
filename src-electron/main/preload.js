@@ -48,6 +48,10 @@ contextBridge.exposeInMainWorld('otm', {
   onError: cb => subscribe('otm:error', cb),
   /** 设置项变更/初始化推送，payload: 完整 settings 对象 */
   onSettings: cb => subscribe('otm:settings', cb),
+  /** 新增日志（任务2），payload: { ts, level, message } */
+  onLog: cb => subscribe('otm:log', cb),
+  /** 系统主题变化（任务3），payload: { shouldUseDarkColors } */
+  onTheme: cb => subscribe('otm:theme', cb),
 
   // —— 向主进程发送指令 ——
   /** 允许当前连接请求 */
@@ -67,5 +71,15 @@ contextBridge.exposeInMainWorld('otm', {
   /** 提交设置变更（部分更新，patch 为键值对） */
   updateSettings: patch => ipcRenderer.send('otm:update-settings', patch),
   /** 重置为默认设置 */
-  resetSettings: () => ipcRenderer.send('otm:reset-settings')
+  resetSettings: () => ipcRenderer.send('otm:reset-settings'),
+
+  // —— 连接日志（任务2，PRD P1 #50）——
+  /** 获取最近连接日志（invoke 返回 Promise，resolve 日志数组） */
+  getLogs: () => ipcRenderer.invoke('otm:get-logs'),
+
+  // —— 开机自启动（任务5，PRD P1 #53）——
+  /** 查询开机自启动状态（invoke 返回 Promise<boolean>） */
+  getAutoLaunch: () => ipcRenderer.invoke('otm:get-autolaunch'),
+  /** 设置开机自启动开关 */
+  setAutoLaunch: enabled => ipcRenderer.send('otm:set-autolaunch', !!enabled)
 })
