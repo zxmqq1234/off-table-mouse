@@ -97,7 +97,13 @@
   - **颜色区分**：单指触碰蓝色(#3b82f6)，多指手势琥珀色(#f59e0b)，前进/返回橙色(#f97316)
   - **字体放大**：16px→24px，加粗700，间距加大
   - **动效加强**：前进→从右滑入，←返回从左滑入，带方向箭头(28px)
-  - **诊断清理**：overlay控制台日志转发到主进程，可视化OVERLAY指示标。配合之前的 STEP=40 SCROLL_BASE=10，手感大幅提升
+  - **诊断清理**：overlay控制台日志转发到主进程，可视化OVERLAY指示标
+- **2026-06-18**：多显示器感知overlay + 白屏预防 + README。
+  - **多显示器支持**：每个显示器一个独立overlay窗口，`getDisplayNearestPoint` 判定光标位置，
+    只在该显示器窗口渲染。解决不同DPI缩放下坐标偏移和动效消失问题。
+  - **白屏预防**：overlay创建延迟到主窗口 `did-finish-load` 后500ms（避免透明GPU窗口抢占资源），
+    加6秒兜底创建。
+  - **README**：C端场景化产品介绍，4个场景故事 + 卖点表 + 快速开始 + 手势速查。配合之前的 STEP=40 SCROLL_BASE=10，手感大幅提升
 
 ## 待决策/待办
 1. **【最关键】Windows 端到端实跑验证**：控制层是 mock，需 Windows 装 `@nut-tree-fork/nut-js` + electron-rebuild，切 `control/index.js` ADAPTER_TYPE='nutjs' 后实测全流程

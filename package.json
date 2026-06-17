@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "桌外鼠标 - 手机浏览器变电脑无线触控板、鼠标、键盘和快捷手势控制器",
   "author": "ye_zhongji <zxmqq135@outlook.com>",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "main": "src-electron/main/index.js",
   "scripts": {
     "dev:desktop": "vite",
