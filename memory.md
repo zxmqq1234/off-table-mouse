@@ -75,11 +75,16 @@
 - **2026-06-19**：设置模块（最后一个 P0）完成合并 main。core/settings.js 持久化 + 桌面端设置面板 + IPC 双向同步。冒烟测试通过。
 - **里程碑：P0 全部代码完成（约41条任务）**。全链路：电脑端服务/控制/GUI/设置 + 手机端连接/控制/键盘/快捷键。eslint/build 全绿。
 
+- **2026-06-19**：P1 增强 + 置灰入口全部完成，合并 main。
+  - 板块F 手机端P1（双指长按右键+输入暂停）、板块G 桌面端P1（设备详情/日志/主题/端口/开机自启/托盘）、置灰入口面板（9项预留）
+  - 全部 63 项任务代码完成
+- **里程碑：PRD 全部 63 项任务代码完成（P0 33 + P1 15 + 置灰 9 + 基础设施 6）**
+
 ## 待决策/待办
-1. **【最关键】Windows 端到端实跑验证**：当前控制层是 mock，整个连接/控制链路未真实运行过。强烈建议在 Windows 上 `npm run dev` 实测扫码连接+鼠标/键盘/手势全流程，确认核心链路通后再做 P1。需先 `npm install @nut-tree-fork/nut-js` + electron-rebuild，把 control/index.js 的 ADAPTER_TYPE 切 'nutjs'。
-2. **双指滑动手势方向**：PRD 9.5 与代码实现存在反向解读，实机手感确认后对调（shortcut-controller.js / gestures.js 已注释标明）
-3. **P1 增强**（15项）：双击/双指点右键/复制地址/设备详情/快捷键扩展/自动重连(手机端已做)/日志/主题/端口/开机启动/托盘
-4. **置灰入口**（9项）：仅 UI，置灰不可点
+1. **【最关键】Windows 端到端实跑验证**：控制层是 mock，需 Windows 装 `@nut-tree-fork/nut-js` + electron-rebuild，切 `control/index.js` ADAPTER_TYPE='nutjs' 后实测全流程
+2. **双指滑动手势方向**：实机手感确认后可能需对调（shortcut-controller.js / gestures.js 注释标明）
+3. **托盘图标**：当前用 nativeImage.createEmpty() 占位，打包时需替换为真实 .ico/.png
+4. **后续迭代**：预留功能实现（蓝牙/服务器中转/PPT/媒体/手写/语音/多设备/账号/跨公网）
 
 ## 关键路径与工具备忘
 - node v22.22.3 / npm 10.9.8
