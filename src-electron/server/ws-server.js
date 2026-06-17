@@ -96,6 +96,8 @@ async function handleMessage(ws, message, req) {
     case EventType.PING:
       // 应用层心跳：手机端发 ping，电脑端立即回 pong
       send(ws, buildMessage(ServerEventType.PONG))
+      // 通知上层（connection）刷新心跳活跃时间
+      if (handlers.onPing) handlers.onPing()
       break
 
     case EventType.PONG:

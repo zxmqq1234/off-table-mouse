@@ -441,9 +441,13 @@ function gestureText(gesture) {
       return '← 返回'
     case GestureType.THREE_FINGER_SWIPE_LEFT:
     case GestureType.THREE_FINGER_SWIPE_RIGHT:
-      return '任务切换'
+      return '切换窗口'
     case GestureType.THREE_FINGER_SWIPE_UP:
-      return '回桌面'
+      return '多任务视图'
+    case GestureType.THREE_FINGER_SWIPE_DOWN:
+      return '显示桌面'
+    case GestureType.THREE_FINGER_TAP:
+      return '中键'
     default:
       return null
   }

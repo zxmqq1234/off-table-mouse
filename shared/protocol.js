@@ -73,7 +73,9 @@ const GestureType = {
   TWO_FINGER_SWIPE_RIGHT: 'two_finger_swipe_right',
   THREE_FINGER_SWIPE_LEFT: 'three_finger_swipe_left',
   THREE_FINGER_SWIPE_RIGHT: 'three_finger_swipe_right',
-  THREE_FINGER_SWIPE_UP: 'three_finger_swipe_up'
+  THREE_FINGER_SWIPE_UP: 'three_finger_swipe_up',
+  THREE_FINGER_SWIPE_DOWN: 'three_finger_swipe_down',
+  THREE_FINGER_TAP: 'three_finger_tap'
 }
 
 // 边缘持续移动方向

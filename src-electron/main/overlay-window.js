@@ -77,7 +77,7 @@ function createOverlay() {
     fullscreenable: false,
     focusable: false,
     hasShadow: false,
-    show: false, // 先隐藏，内容就绪后再显示
+    show: true, // 直接显示（不依赖 ready-to-show，透明窗口该事件可能不触发）
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -87,18 +87,15 @@ function createOverlay() {
 
   // 最高置顶级别（覆盖在所有窗口之上，包括全屏应用）
   overlayWindow.setAlwaysOnTop(true, 'screen-saver')
-  // 鼠标穿透：所有鼠标事件透传到下层窗口
-  overlayWindow.setIgnoreMouseEvents(true, { forward: true })
+  // 鼠标穿透：所有鼠标事件透传到下层窗口（不转发，overlay 不需要鼠标事件）
+  overlayWindow.setIgnoreMouseEvents(true)
 
   // 加载 overlay 页面（纯 HTML，dev/prod 都用 file://）
   overlayWindow.loadFile(path.join(__dirname, 'overlay.html'))
 
-  // 内容就绪后显示窗口（避免白屏闪烁）
+  // 内容就绪诊断（窗口已直接 show，这里只记录日志）
   overlayWindow.once('ready-to-show', () => {
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.show()
-      console.log('[overlay] 窗口已显示')
-    }
+    console.log('[overlay] ready-to-show')
   })
 
   // 加载失败诊断

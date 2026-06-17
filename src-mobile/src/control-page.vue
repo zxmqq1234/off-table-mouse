@@ -114,15 +114,18 @@ const recognizer = createGestureRecognizer({
     const g = dir === 'right' ? GestureType.TWO_FINGER_SWIPE_RIGHT : GestureType.TWO_FINGER_SWIPE_LEFT
     props.wsClient.send(gestureMessage(g))
   },
-  // 三指滑动 → 任务切换 / 回桌面
+  // 三指滑动 → 任务切换 / 多任务视图 / 显示桌面
   onThreeFingerSwipe: (dir) => {
     const map = {
       left: GestureType.THREE_FINGER_SWIPE_LEFT,
       right: GestureType.THREE_FINGER_SWIPE_RIGHT,
-      up: GestureType.THREE_FINGER_SWIPE_UP
+      up: GestureType.THREE_FINGER_SWIPE_UP,
+      down: GestureType.THREE_FINGER_SWIPE_DOWN
     }
     props.wsClient.send(gestureMessage(map[dir]))
-  }
+  },
+  // 三指轻点 → 中键
+  onThreeFingerTap: () => props.wsClient.send(gestureMessage(GestureType.THREE_FINGER_TAP))
 }, settings.value)
 
 // ===== 工具函数：TouchList → 简化点集 =====
