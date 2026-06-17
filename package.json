@@ -49,6 +49,7 @@
       "dist-desktop/**/*",
       "dist-mobile/**/*",
       "shared/**/*",
+      "build/**/*",
       "package.json"
     ],
     "win": {

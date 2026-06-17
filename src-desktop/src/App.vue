@@ -15,7 +15,7 @@
    - 顶部错误提示 banner（可关闭）
 -->
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import SettingsPanel from './settings-panel.vue'
 import LogPanel from './log-panel.vue'
 
@@ -57,6 +57,22 @@ const statusTextMap = {
 const isConnected = computed(() => connectionStatus.value === 'connected')
 // 是否可复制（地址就绪后才能复制）
 const canCopy = computed(() => serverUrl.value.startsWith('http'))
+
+// —— 已连接时长（每秒刷新） ——
+const nowTick = ref(Date.now())
+let durationTimer = null
+const connectedDuration = computed(() => {
+  if (!isConnected.value || !deviceInfo.value || !deviceInfo.value.connectedAt) return '--'
+  const ms = nowTick.value - deviceInfo.value.connectedAt
+  if (ms < 0) return '--'
+  const totalSec = Math.floor(ms / 1000)
+  const h = Math.floor(totalSec / 3600)
+  const m = Math.floor((totalSec % 3600) / 60)
+  const s = totalSec % 60
+  if (h > 0) return `${h}时${m}分${s}秒`
+  if (m > 0) return `${m}分${s}秒`
+  return `${s}秒`
+})
 
 // 把时间戳格式化为可读时间字符串
 function formatTime(ts) {
@@ -131,8 +147,9 @@ onMounted(() => {
     if (data.url) serverUrl.value = data.url
   })
 
-  // 手机连接请求：弹出确认框
+  // 手机连接请求：弹出确认框（autoApproved=true 时免确认，仅刷新设备信息）
   otm.onConnectRequest(data => {
+    if (data && data.autoApproved) return // 免确认模式，不弹窗（状态事件已更新）
     connectRequest.value = data
   })
 
@@ -145,6 +162,18 @@ onMounted(() => {
   otm.onError(data => {
     showError(data && data.message ? data.message : '发生错误')
   })
+
+  // 连接时长定时刷新（每秒）
+  durationTimer = setInterval(() => {
+    nowTick.value = Date.now()
+  }, 1000)
+})
+
+onUnmounted(() => {
+  if (durationTimer) {
+    clearInterval(durationTimer)
+    durationTimer = null
+  }
 })
 </script>
 
@@ -196,43 +225,70 @@ onMounted(() => {
       </div>
     </header>
 
-    <!-- 主区域：二维码与连接地址 -->
+    <!-- 主区域：未连接显示二维码，已连接显示连接信息 -->
     <main class="main">
-      <div class="qr-area">
-        <!-- 二维码就绪后展示图片 -->
-        <img
-          v-if="qrCodeDataUrl"
-          :src="qrCodeDataUrl"
-          class="qr-img"
-          alt="连接二维码"
-        >
-        <!-- 未就绪时显示占位 -->
-        <div
-          v-else
-          class="qr-placeholder"
-        >
-          <span>服务启动中…</span>
+      <!-- 已连接：显示设备信息卡 -->
+      <div
+        v-if="isConnected && deviceInfo"
+        class="connected-card"
+      >
+        <div class="connected-icon">
+          ✓
+        </div>
+        <div class="connected-info">
+          <div class="connected-device">
+            {{ deviceInfo.deviceName || '已连接设备' }}
+          </div>
+          <div class="connected-detail">
+            <span class="muted">IP：</span>{{ deviceInfo.ip || '未知' }}
+          </div>
+          <div class="connected-detail">
+            <span class="muted">连接时间：</span>{{ formatTime(deviceInfo.connectedAt) }}
+          </div>
+          <div class="connected-detail">
+            <span class="muted">已连接：</span>{{ connectedDuration }}
+          </div>
         </div>
       </div>
 
-      <div class="url-row">
-        <code class="url">{{ serverUrl }}</code>
-        <button
-          class="btn-copy"
-          title="复制连接地址"
-          :disabled="!canCopy"
-          @click="copyUrl"
-        >
-          复制
-        </button>
-      </div>
+      <!-- 未连接：显示二维码与连接地址 -->
+      <template v-else>
+        <div class="qr-area">
+          <!-- 二维码就绪后展示图片 -->
+          <img
+            v-if="qrCodeDataUrl"
+            :src="qrCodeDataUrl"
+            class="qr-img"
+            alt="连接二维码"
+          >
+          <!-- 未就绪时显示占位 -->
+          <div
+            v-else
+            class="qr-placeholder"
+          >
+            <span>服务启动中…</span>
+          </div>
+        </div>
 
-      <button
-        class="btn-refresh"
-        @click="refreshQRCode"
-      >
-        刷新二维码
-      </button>
+        <div class="url-row">
+          <code class="url">{{ serverUrl }}</code>
+          <button
+            class="btn-copy"
+            title="复制连接地址"
+            :disabled="!canCopy"
+            @click="copyUrl"
+          >
+            复制
+          </button>
+        </div>
+
+        <button
+          class="btn-refresh"
+          @click="refreshQRCode"
+        >
+          刷新二维码
+        </button>
+      </template>
     </main>
 
     <!-- 底部：已连接设备与断开 -->
@@ -487,6 +543,50 @@ onMounted(() => {
 .btn-refresh {
   width: 100%;
   max-width: 320px;
+}
+
+/* 已连接信息卡 */
+.connected-card {
+  width: 100%;
+  max-width: 320px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.connected-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #16a34a;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.connected-info {
+  flex: 1;
+  min-width: 0;
+}
+.connected-device {
+  font-size: 16px;
+  font-weight: 600;
+  color: #15803d;
+  margin-bottom: 8px;
+}
+.connected-detail {
+  font-size: 13px;
+  color: #374151;
+  margin-top: 4px;
+}
+.connected-detail .muted {
+  color: #9ca3af;
 }
 
 .footer {

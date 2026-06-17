@@ -164,19 +164,25 @@ function showMainWindow() {
 
 /**
  * 创建系统托盘（任务6，PRD P1 #54）
- * - 图标用 nativeImage.createEmpty() 占位（无依赖），打包时替换为真实 .ico/.png
- * - 菜单：显示主窗口 / 退出应用
+ * - 图标：build/tray-icon.png（鼠标光标形状，蓝色）
+ * - 菜单：显示主窗口 / 免确认连接开关 / 断开连接 / 刷新二维码 / 退出
  * - 单击托盘图标：切换主窗口显示/隐藏
  * 失败时仅记录日志，不阻断应用启动（某些 Linux 环境无托盘支持）
  */
 function createTray() {
   try {
-    // 占位图标：空白图标（打包时需替换为 build/icon.png 等真实资源）
-    const icon = nativeImage.createEmpty()
+    // 加载托盘图标（16x16 适合 Windows 系统托盘尺寸）
+    const iconPath = path.join(__dirname, '..', '..', 'build', 'tray-icon-16.png')
+    let icon = nativeImage.createFromPath(iconPath)
+    // 图标文件缺失或空时降级为空白图标（不影响托盘功能）
+    if (icon.isEmpty()) {
+      logger.log('warn', '托盘图标文件缺失或为空，使用空白图标占位')
+      icon = nativeImage.createEmpty()
+    }
     tray = new Tray(icon)
     tray.setToolTip('桌外鼠标')
 
-    // 右键菜单：显示窗口 / 退出
+    // 右键菜单：显示窗口 / 免确认开关 / 断开 / 刷新二维码 / 退出
     const menu = Menu.buildFromTemplate([
       {
         label: '显示主窗口',
@@ -184,9 +190,30 @@ function createTray() {
       },
       { type: 'separator' },
       {
+        label: '免确认连接',
+        type: 'checkbox',
+        checked: settingsStore.getSettings().autoApproveConnect !== false,
+        click: (menuItem) => {
+          settingsStore.updateSettings({ autoApproveConnect: menuItem.checked })
+        }
+      },
+      {
+        label: '断开连接',
+        enabled: server.getState() === 'connected',
+        click: () => {
+          try { server.disconnectClient('tray_disconnect') } catch (_e) { /* 忽略 */ }
+        }
+      },
+      {
+        label: '刷新二维码',
+        click: async () => {
+          try { await server.refreshQRCode() } catch (_e) { /* 忽略 */ }
+        }
+      },
+      { type: 'separator' },
+      {
         label: '退出',
         click: () => {
-          // 标记真正退出，让 close 事件放行
           isQuitting = true
           app.quit()
         }
@@ -208,6 +235,54 @@ function createTray() {
     logger.log('warn', '创建托盘失败（可忽略，不影响主功能）：' + (err && err.message ? err.message : err))
     tray = null
   }
+}
+
+/**
+ * 刷新托盘菜单状态（连接状态变化时调用，更新"断开连接"可用性）
+ */
+function refreshTrayMenu() {
+  if (!tray) return
+  try {
+    const connected = server.getState() === 'connected'
+    const autoApprove = settingsStore.getSettings().autoApproveConnect !== false
+    const menu = Menu.buildFromTemplate([
+      {
+        label: '显示主窗口',
+        click: () => showMainWindow()
+      },
+      { type: 'separator' },
+      {
+        label: '免确认连接',
+        type: 'checkbox',
+        checked: autoApprove,
+        click: (menuItem) => {
+          settingsStore.updateSettings({ autoApproveConnect: menuItem.checked })
+        }
+      },
+      {
+        label: '断开连接',
+        enabled: connected,
+        click: () => {
+          try { server.disconnectClient('tray_disconnect') } catch (_e) { /* 忽略 */ }
+        }
+      },
+      {
+        label: '刷新二维码',
+        click: async () => {
+          try { await server.refreshQRCode() } catch (_e) { /* 忽略 */ }
+        }
+      },
+      { type: 'separator' },
+      {
+        label: '退出',
+        click: () => {
+          isQuitting = true
+          app.quit()
+        }
+      }
+    ])
+    tray.setContextMenu(menu)
+  } catch (_e) { /* 忽略刷新异常 */ }
 }
 
 /**
@@ -284,6 +359,8 @@ function bindServerEvents() {
     } else if (data && data.state === 'disconnected') {
       logger.log('warn', '连接已断开')
     }
+    // 刷新托盘菜单（更新"断开连接"可用性）
+    refreshTrayMenu()
   })
   // 新二维码生成（刷新时） → GUI 二维码图
   server.on('qrcode', data => sendToRenderer('otm:qrcode', data))
@@ -462,6 +539,15 @@ function bindSettingsChange() {
     if (prev && prev.minimizeToTray !== next.minimizeToTray) {
       logger.log('info', `最小化到托盘已${next.minimizeToTray ? '开启' : '关闭'}`)
     }
+
+    // 免确认连接变更 → 同步到 connection manager
+    if (!prev || prev.autoApproveConnect !== next.autoApproveConnect) {
+      try {
+        const { manager: connection } = require('../core/connection')
+        connection.setAutoApprove(next.autoApproveConnect !== false)
+        logger.log('info', `免确认连接已${next.autoApproveConnect !== false ? '开启' : '关闭'}`)
+      } catch (_e) { /* 忽略 */ }
+    }
   })
 }
 
@@ -506,6 +592,12 @@ async function startApp() {
 
   // 2. 初始化控制层（鼠标/键盘/快捷键适配器），传入加载到的设置
   control.initController(settings)
+
+  // 2.1 同步连接免确认设置到 connection manager
+  try {
+    const { manager: connection } = require('../core/connection')
+    connection.setAutoApprove(settings.autoApprove !== false)
+  } catch (_e) { /* 忽略 */ }
 
   // 3. 先绑定事件与 IPC，避免漏发服务启动期间的早期事件
   bindServerEvents()

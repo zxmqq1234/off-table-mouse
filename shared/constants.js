@@ -33,6 +33,8 @@ module.exports = {
     serverPort: 'auto',
     themeMode: 'system',
     // 关闭窗口时最小化到系统托盘（任务6，PRD P1 #54）；默认开启
-    minimizeToTray: true
+    minimizeToTray: true,
+    // 手机连接是否免确认（true=手机扫码后自动连接，不弹确认框；false=需电脑端手动允许）
+    autoApproveConnect: true
   }
 }
