@@ -1,0 +1,61 @@
+# ===== 依赖 =====
+node_modules/
+.pnp/
+.pnp.js
+
+# ===== 构建产物 =====
+dist/
+dist-electron/
+build/
+out/
+release/
+*.app
+*.exe
+*.dmg
+*.AppImage
+*.snap
+*.deb
+
+# ===== 日志与临时文件 =====
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+logs/
+tmp/
+temp/
+.cache/
+*.tmp
+
+# ===== 密钥与凭证 =====
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+secrets/
+
+# ===== IDE / 编辑器 =====
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ===== 系统文件 =====
+desktop.ini
+ehthumbs.db
+
+# ===== 飞书临时文件 =====
+feishu_login.png
+.lark_*
+
+# ===== 测试覆盖率 =====
+coverage/
+.nyc_output/
