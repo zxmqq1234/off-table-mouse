@@ -21,7 +21,6 @@
 
 const { EventEmitter } = require('events')
 const { HEARTBEAT_INTERVAL, HEARTBEAT_TIMEOUT } = require('../../shared/constants')
-const { EventType, buildMessage } = require('../../shared/protocol')
 
 // 连接状态枚举
 const ConnectionState = {

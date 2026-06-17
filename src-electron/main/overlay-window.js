@@ -139,10 +139,14 @@ function createOverlay() {
  * @param {string} [text]
  */
 function _sendEffect(effect, text) {
-  if (!overlayWindow || overlayWindow.isDestroyed()) return
+  if (!overlayWindow || overlayWindow.isDestroyed()) {
+    console.log('[diag] _sendEffect: overlay窗口不存在/已销毁')
+    return
+  }
   const point = screen.getCursorScreenPoint()
   const x = point.x - overlayOriginX
   const y = point.y - overlayOriginY
+  console.log('[diag] _sendEffect: 发送IPC', { x, y, effect, text }, '窗口可见:', overlayWindow.isVisible())
   overlayWindow.webContents.send('otm:overlay-effect', { x, y, effect, text })
 }
 
@@ -152,8 +156,10 @@ function _sendEffect(effect, text) {
  * @param {string} [text] 手势文字（effect='gesture' 时有效）
  */
 function triggerEffect(effect, text) {
+  console.log('[diag] triggerEffect 调用:', effect, 'overlayReady:', overlayReady)
   // 页面未就绪时缓冲（最多缓冲 20 个，防止积压）
   if (!overlayReady) {
+    console.log('[diag] triggerEffect: 页面未就绪，缓冲')
     if (pendingEffects.length < 20) pendingEffects.push({ effect, text })
     return
   }

@@ -56,8 +56,8 @@ function sensFactor(level) {
   return Number.isFinite(n) ? n : 1
 }
 
-// 滚动基础放大：手指 1px ≈ 滚轮 N 单位（鼠标滚轮一格约 100~120）
-const SCROLL_BASE = 6
+// 滚动基础放大：手指 1px → 滚轮放大倍数（最终滚动量 = dy * SCROLL_BASE * 后端灵敏度 / adapter STEP）
+const SCROLL_BASE = 10
 
 // ===== 面板显示状态 =====
 const showKeyboard = ref(false)

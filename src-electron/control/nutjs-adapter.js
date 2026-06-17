@@ -130,11 +130,11 @@ function createNutjsAdapter() {
    * 约定：deltaY < 0 → 向上滚（滚轮向上，内容上移），deltaY > 0 → 向下滚；
    *       deltaX < 0 → 向左，deltaX > 0 → 向右。
    * nut.js 的 scrollUp/scrollDown 入参为「滚动格数」，需把像素级 delta 折算为格数
-   * （此处按 120px≈1 格折算，需 Windows 实测微调）。
+   * （按 40px≈1 格折算，配合前端 SCROLL_BASE 与 controller 灵敏度，实测手感适中）。
    * 【需 Windows 验证：滚动量级与方向手感】
    */
   async function scrollMouse(deltaX, deltaY) {
-    const STEP = 120 // 1 滚轮格 ≈ 120px，可调
+    const STEP = 40 // 滚轮格折算（值越小滚动越灵敏）
     if (deltaY < 0) {
       await mouse.scrollUp(Math.max(1, Math.round(-deltaY / STEP)))
     } else if (deltaY > 0) {

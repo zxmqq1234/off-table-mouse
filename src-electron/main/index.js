@@ -56,6 +56,7 @@ function createWindow() {
     minHeight: 600,
     title: '桌外鼠标',
     autoHideMenuBar: true,
+    backgroundColor: '#ffffff', // 显式背景色，避免透明窗口创建顺序导致的白屏
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -65,7 +66,16 @@ function createWindow() {
 
   if (isDev) {
     // 开发模式：加载 Vite dev server，自动打开开发者工具便于调试
-    mainWindow.loadURL('http://localhost:5173')
+    // 加重试机制：Vite 偶尔未完全就绪时 loadURL 失败，重试避免白屏
+    const loadWithRetry = (url, retries = 3) => {
+      mainWindow.loadURL(url).catch(() => {
+        if (retries > 0) {
+          console.log(`[main] 加载 ${url} 失败，${1}s 后重试（剩余 ${retries} 次）`)
+          setTimeout(() => loadWithRetry(url, retries - 1), 1000)
+        }
+      })
+    }
+    loadWithRetry('http://localhost:5173')
     mainWindow.webContents.openDevTools({ mode: 'detach' })
   } else {
     // 生产模式：加载本地构建产物
@@ -385,11 +395,13 @@ function bindServerEvents() {
   server.on('control', message => {
     // 动效事件：纯 UI 反馈，不进控制层，直接触发 overlay 动效
     if (message && message.type === 'cursor_effect') {
+      console.log('[diag] 收到 cursor_effect 事件，触发动效')
       triggerEffectFromMessage(message)
       return
     }
     // 设置同步：手机端下发设置变更，应用并落盘（不进控制层）
     if (message && message.type === 'setting_update') {
+      console.log('[diag] 收到 setting_update:', JSON.stringify(message.payload && message.payload.settings))
       try {
         settingsStore.updateSettings((message.payload && message.payload.settings) || {})
       } catch (err) {
@@ -399,7 +411,12 @@ function bindServerEvents() {
     }
     // 手势事件：既执行快捷键，又在 overlay 显示手势文字动效
     if (message && message.type === 'gesture') {
+      console.log('[diag] 收到 gesture 事件:', (message.payload && message.payload.gesture))
       triggerEffectFromMessage(message)
+    }
+    // 滚动事件诊断
+    if (message && message.type === 'mouse_scroll') {
+      console.log('[diag] mouse_scroll payload:', JSON.stringify(message.payload), '当前灵敏度:', settings && JSON.stringify({ v: settings.verticalScrollSensitivity, h: settings.horizontalScrollSensitivity }))
     }
     try {
       control.dispatchEvent(message, settings)
@@ -420,10 +437,12 @@ function triggerEffectFromMessage(message) {
   const payload = (message && message.payload) || {}
   if (message.type === 'cursor_effect') {
     // 单指触碰 → 涟漪
+    console.log('[diag] triggerEffect touch（调用 overlay.triggerEffect）')
     overlay.triggerEffect('touch')
   } else if (message.type === 'gesture' && payload.gesture) {
     // 手势 → 文字气泡（映射手势到可读文字）
     const text = gestureText(payload.gesture)
+    console.log('[diag] triggerEffect gesture:', payload.gesture, 'text:', text)
     if (text) overlay.triggerEffect('gesture', text)
   }
 }

@@ -113,7 +113,11 @@
      */
     function playEffect(data) {
       const { x, y, effect, text } = data || {}
-      if (typeof x !== 'number' || typeof y !== 'number') return
+      console.log('[overlay-diag] playEffect 收到:', JSON.stringify(data))
+      if (typeof x !== 'number' || typeof y !== 'number') {
+        console.log('[overlay-diag] 坐标无效，跳过')
+        return
+      }
 
       if (effect === 'touch') {
         // 涟漪 + 中心点
