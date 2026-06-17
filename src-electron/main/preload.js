@@ -46,6 +46,8 @@ contextBridge.exposeInMainWorld('otm', {
   onDisconnect: cb => subscribe('otm:disconnect', cb),
   /** 错误提示，payload: { message } */
   onError: cb => subscribe('otm:error', cb),
+  /** 设置项变更/初始化推送，payload: 完整 settings 对象 */
+  onSettings: cb => subscribe('otm:settings', cb),
 
   // —— 向主进程发送指令 ——
   /** 允许当前连接请求 */
@@ -57,5 +59,13 @@ contextBridge.exposeInMainWorld('otm', {
   /** 主动断开已连接的手机 */
   disconnectClient: () => ipcRenderer.send('otm:disconnect'),
   /** 复制连接地址到系统剪贴板 */
-  copyUrl: url => ipcRenderer.send('otm:copy-url', url)
+  copyUrl: url => ipcRenderer.send('otm:copy-url', url),
+
+  // —— 设置相关 ——
+  /** 获取当前设置（invoke 返回 Promise，resolve 完整 settings 对象） */
+  getSettings: () => ipcRenderer.invoke('otm:get-settings'),
+  /** 提交设置变更（部分更新，patch 为键值对） */
+  updateSettings: patch => ipcRenderer.send('otm:update-settings', patch),
+  /** 重置为默认设置 */
+  resetSettings: () => ipcRenderer.send('otm:reset-settings')
 })

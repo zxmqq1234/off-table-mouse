@@ -15,9 +15,11 @@
  *
  * IPC 通道命名统一用 `otm:xxx` 前缀，与 preload.js、App.vue 对应：
  *   主进程 -> 渲染进程（send）：otm:status / otm:qrcode / otm:connect_request /
- *                                    otm:disconnect / otm:error
+ *                                    otm:disconnect / otm:error / otm:settings
  *   渲染进程 -> 主进程（on）：    otm:approve / otm:reject / otm:refresh-qrcode /
- *                                    otm:disconnect / otm:copy-url
+ *                                    otm:disconnect / otm:copy-url /
+ *                                    otm:update-settings / otm:reset-settings
+ *   渲染进程 -> 主进程（invoke）：otm:get-settings
  */
 
 const { app, BrowserWindow, ipcMain, clipboard } = require('electron')
@@ -25,14 +27,14 @@ const path = require('path')
 
 const server = require('../server')
 const control = require('../control')
-const { DEFAULT_SETTINGS } = require('../../shared/constants')
+const settingsStore = require('../core/settings')
 
 const isDev = process.env.NODE_ENV === 'development'
 
 /** 主窗口引用，避免被 GC 回收 */
 let mainWindow = null
-/** 当前设置项（后续接入设置模块后可动态更新并下发控制层） */
-let settings = DEFAULT_SETTINGS
+/** 当前设置项（从持久化加载，变更时下发控制层与渲染进程） */
+let settings = null
 /** 服务是否在运行（用于退出时避免重复清理） */
 let servicesRunning = false
 
@@ -101,6 +103,8 @@ function pushInitialState() {
       qrCodeDataURL: info.qrCodeDataURL
     })
   }
+  // 推送当前设置项，供 GUI 设置面板初始化显示
+  sendToRenderer('otm:settings', settingsStore.getSettings())
 }
 
 /**
@@ -153,21 +157,49 @@ function bindIpcHandlers() {
       clipboard.writeText(url)
     }
   })
+
+  // —— 设置模块 IPC ——
+  // 渲染进程请求当前设置（用 handle 返回值，便于 GUI 初始化）
+  ipcMain.handle('otm:get-settings', () => settingsStore.getSettings())
+  // 渲染进程提交设置变更（部分更新），settingsStore 内部会落盘并触发 change 事件
+  ipcMain.on('otm:update-settings', (_event, patch) => {
+    settingsStore.updateSettings(patch)
+  })
+  // 渲染进程重置为默认设置
+  ipcMain.on('otm:reset-settings', () => {
+    settingsStore.resetSettings()
+  })
+}
+
+/**
+ * 订阅设置变更：更新主进程持有的 settings 引用，并推送给渲染进程
+ * 注意：控制层（control）的设置同步在 dispatchEvent 时按最新 settings 自动应用，
+ * 因此这里无需单独调用 control.updateSettings。
+ */
+function bindSettingsChange() {
+  settingsStore.onChange(next => {
+    settings = next
+    sendToRenderer('otm:settings', next)
+  })
 }
 
 /**
  * 启动应用：创建窗口 → 初始化控制层 → 绑定事件/IPC → 启动服务
  */
 async function startApp() {
+  // 0. 初始化设置模块（从持久化文件加载，失败回退默认值）
+  settings = settingsStore.init(app.getPath('userData'))
+
   // 1. 创建窗口
   createWindow()
 
-  // 2. 初始化控制层（鼠标/键盘/快捷键适配器）
+  // 2. 初始化控制层（鼠标/键盘/快捷键适配器），传入加载到的设置
   control.initController(settings)
 
   // 3. 先绑定事件与 IPC，避免漏发服务启动期间的早期事件
   bindServerEvents()
   bindIpcHandlers()
+  bindSettingsChange()
 
   // 4. 启动后端服务（HTTP + WebSocket + 二维码 + 连接管理）
   try {
