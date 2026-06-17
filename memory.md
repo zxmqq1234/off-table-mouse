@@ -72,13 +72,14 @@
   - 合并后全量验证：eslint 零警告、双端 vite build 成功。
 - **飞书表**：已完成约 40 条（基础设施6 + 板块A连接12 + 板块B输入4 + 板块C集成3 + 板块D手机端15）。
 
+- **2026-06-19**：设置模块（最后一个 P0）完成合并 main。core/settings.js 持久化 + 桌面端设置面板 + IPC 双向同步。冒烟测试通过。
+- **里程碑：P0 全部代码完成（约41条任务）**。全链路：电脑端服务/控制/GUI/设置 + 手机端连接/控制/键盘/快捷键。eslint/build 全绿。
+
 ## 待决策/待办
-1. **双指滑动手势方向**：PRD 9.5（"左→右滑=后退"）与板块B/板块D实现存在反向解读，实机手感确认后可能需对调（`shortcut-controller.js` / `gestures.js` 已注释标明）
-2. **nut.js Windows 验证**：板块B 代码已写好，需在 Windows 装 `@nut-tree-fork/nut-js` + electron-rebuild 实测
-3. **Windows 端到端实跑**：当前全链路代码完成（mock 控制层），需 Windows 上 `npm run dev` 实测扫码连接+控制全流程
-4. **设置模块（最后一个P0）**：#40 电脑端设置存储+UI、手机端设置入口接线。做完P0全部代码完成
-5. **P1 增强**：双击/双指点右键/复制地址/设备详情/快捷键扩展/自动重连(手机端已做)/日志/主题/端口/开机启动/托盘
-6. **置灰入口**：9 条仅 UI
+1. **【最关键】Windows 端到端实跑验证**：当前控制层是 mock，整个连接/控制链路未真实运行过。强烈建议在 Windows 上 `npm run dev` 实测扫码连接+鼠标/键盘/手势全流程，确认核心链路通后再做 P1。需先 `npm install @nut-tree-fork/nut-js` + electron-rebuild，把 control/index.js 的 ADAPTER_TYPE 切 'nutjs'。
+2. **双指滑动手势方向**：PRD 9.5 与代码实现存在反向解读，实机手感确认后对调（shortcut-controller.js / gestures.js 已注释标明）
+3. **P1 增强**（15项）：双击/双指点右键/复制地址/设备详情/快捷键扩展/自动重连(手机端已做)/日志/主题/端口/开机启动/托盘
+4. **置灰入口**（9项）：仅 UI，置灰不可点
 
 ## 关键路径与工具备忘
 - node v22.22.3 / npm 10.9.8
@@ -89,7 +90,7 @@
 - 板块B 入口：`require('./control').initController(settings)` + `dispatchEvent(message, settings)` + `disposeController()`
 - IPC 通道（主↔渲染）：`otm:status|qrcode|connect_request|disconnect|error`（主→渲染）；`otm:approve|reject|refresh-qrcode|disconnect|copy-url`（渲染→主）
 - 手机端 WS：连接路径 `/ws`，URL 携带 `?token=`，心跳 ping/pong，非主动断开自动重连3次
-- 设置项当前用 `constants.DEFAULT_SETTINGS` 占位，待设置模块实现持久化
+- 设置项持久化在 `userData/settings.json`（core/settings.js），main 启动加载，IPC `otm:get-settings|update-settings|reset-settings|settings`
 - lark-cli 文件参数必须用相对路径（当前目录内）
 
 ## 状态记录（追加）
