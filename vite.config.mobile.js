@@ -4,10 +4,12 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
+import { sharedCjsToEsm } from './vite-plugin-shared-cjs.js'
 
 export default defineConfig({
   root: 'src-mobile',
-  plugins: [vue()],
+  // sharedCjsToEsm：dev 模式把 shared/*.js 的 CJS 命名导出转 ESM（build 由下方 commonjsOptions 处理）
+  plugins: [vue(), sharedCjsToEsm(resolve(__dirname, 'shared'))],
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src-mobile/src'),
