@@ -25,7 +25,6 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.4",
     "@vitejs/plugin-vue": "^5.1.4",
     "concurrently": "^9.2.1",
     "cross-env": "^7.0.3",
@@ -57,9 +56,17 @@
     ],
     "win": {
       "target": [
-        "nsis"
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
       ]
-    }
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "compression": "maximum"
   },
   "allowScripts": {
     "electron@33.4.11": true,
