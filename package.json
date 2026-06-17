@@ -1,0 +1,55 @@
+{
+  "name": "off-table-mouse",
+  "version": "1.0.0",
+  "description": "桌外鼠标 - 手机浏览器变电脑无线触控板、鼠标、键盘和快捷手势控制器",
+  "author": "ye_zhongji <zxmqq135@outlook.com>",
+  "license": "MIT",
+  "main": "src-electron/main/index.js",
+  "scripts": {
+    "dev:desktop": "vite",
+    "dev:mobile": "vite --config vite.config.mobile.js",
+    "dev:electron": "wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .",
+    "dev": "concurrently -k -n desktop,mobile,electron -c blue,magenta,green \"npm:dev:desktop\" \"npm:dev:mobile\" \"npm:dev:electron\"",
+    "start": "cross-env NODE_ENV=production electron .",
+    "build:desktop": "vite build",
+    "build:mobile": "vite build --config vite.config.mobile.js",
+    "build": "npm run build:desktop && npm run build:mobile",
+    "build:win": "npm run build && electron-builder --win --x64",
+    "lint": "eslint . --ext .js,.vue",
+    "lint:fix": "eslint . --ext .js,.vue --fix",
+    "format": "prettier --write \"src*/**/*.{js,vue,css,html}\" \"shared/**/*.js\""
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.1.4",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "eslint": "^8.57.1",
+    "eslint-plugin-vue": "^9.30.0",
+    "prettier": "^3.3.3",
+    "vite": "^5.4.10",
+    "vue": "^3.5.13",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.offtablemouse.app",
+    "productName": "桌外鼠标",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src-electron/**/*",
+      "dist-desktop/**/*",
+      "dist-mobile/**/*",
+      "shared/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": ["nsis"]
+    }
+  }
+}
