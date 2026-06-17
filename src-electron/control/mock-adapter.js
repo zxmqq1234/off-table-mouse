@@ -10,32 +10,23 @@
  * - 灵敏度档位语义与 nutjs-adapter 一致（low=0.6 / medium=1.0 / high=1.6）。
  */
 
-const { SENSITIVITY_MULTIPLIER, normalizeSensitivity } = require('./adapter')
+const { normalizeSensitivity } = require('./adapter')
 
 /**
  * 创建一个 Mock 输入适配器实例
  * @returns {import('./adapter').InputAdapter}
  */
 function createMockAdapter() {
-  // 当前鼠标灵敏度档位（内部状态）
-  let sensitivity = 'medium'
-
-  /**
-   * 取当前灵敏度对应的倍率
-   * @returns {number}
-   */
-  function multiplier() {
-    return SENSITIVITY_MULTIPLIER[sensitivity] ?? 1.0
-  }
+  // 当前鼠标灵敏度倍率（数值，内部状态）
+  let sensitivity = 1.0
 
   /** 鼠标相对移动：在 adapter 内应用灵敏度倍率 */
   function moveMouse(dx, dy) {
-    const m = multiplier()
-    const fx = Number(dx) * m
-    const fy = Number(dy) * m
+    const fx = Number(dx) * sensitivity
+    const fy = Number(dy) * sensitivity
     console.log(
       `[MOCK] moveMouse fx=${fx.toFixed(2)} fy=${fy.toFixed(2)} ` +
-        `(raw dx=${dx} dy=${dy}, sens=${sensitivity}×${m})`
+        `(raw dx=${dx} dy=${dy}, sens=${sensitivity}×)`
     )
   }
 

@@ -31,12 +31,13 @@ const emit = defineEmits(['close'])
 const otm = typeof window !== 'undefined' ? window.otm : undefined
 
 // 本地表单状态（与主进程 settings 同步）
+// 灵敏度统一为数值：鼠标/滚动=倍率(0.1~3.0)，边缘移动=每帧像素(1~20)
 const form = reactive({
-  mouseSensitivity: 'medium',
+  mouseSensitivity: 1.0,
   mouseAcceleration: true,
-  verticalScrollSensitivity: 'medium',
-  horizontalScrollSensitivity: 'medium',
-  edgeMoveSpeed: 'medium',
+  verticalScrollSensitivity: 1.0,
+  horizontalScrollSensitivity: 1.0,
+  edgeMoveSpeed: 8,
   clickThreshold: 200,
   longPressThreshold: 500,
   doubleClickInterval: 300,
@@ -57,12 +58,21 @@ const portInput = ref('')
 // 标记是否正在用主进程推送回填，避免回填触发 watch 又提交一次
 let syncing = false
 
-// 灵敏度可选项
-const sensitivityOptions = [
-  { value: 'low', label: '低' },
-  { value: 'medium', label: '中' },
-  { value: 'high', label: '高' }
-]
+// 旧灵敏度档位 → 数值倍率（向后兼容已保存的旧 settings.json）
+const LEGACY_SENSITIVITY = { low: 0.6, medium: 1.0, high: 1.6 }
+
+/**
+ * 把灵敏度值归一化为数值（兼容旧字符串档位）
+ * @param {string|number} val
+ * @param {number} fallback 兜底默认值
+ * @returns {number}
+ */
+function toNumberSensitivity(val, fallback) {
+  if (typeof val === 'string' && LEGACY_SENSITIVITY[val] != null) return LEGACY_SENSITIVITY[val]
+  const n = Number(val)
+  return Number.isFinite(n) ? n : fallback
+}
+
 const themeOptions = [
   { value: 'system', label: '跟随系统' },
   { value: 'light', label: '浅色' },
@@ -78,6 +88,11 @@ function applySettings(data) {
   Object.keys(form).forEach(key => {
     if (key in data) form[key] = data[key]
   })
+  // 灵敏度字段：兼容旧字符串档位，归一化为数值
+  form.mouseSensitivity = toNumberSensitivity(data.mouseSensitivity, 1.0)
+  form.verticalScrollSensitivity = toNumberSensitivity(data.verticalScrollSensitivity, 1.0)
+  form.horizontalScrollSensitivity = toNumberSensitivity(data.horizontalScrollSensitivity, 1.0)
+  form.edgeMoveSpeed = toNumberSensitivity(data.edgeMoveSpeed, 8)
   // 端口回填到输入框：'auto' 显示空（占位提示"自动"）
   portInput.value = form.serverPort === 'auto' ? '' : String(form.serverPort)
   // 下个微任务后解除 syncing 标志，让后续用户改动能正常提交
@@ -164,18 +179,17 @@ onMounted(async () => {
             </h3>
             <div class="row">
               <label class="row-label">鼠标灵敏度</label>
-              <select
-                v-model="form.mouseSensitivity"
-                class="select"
-              >
-                <option
-                  v-for="o in sensitivityOptions"
-                  :key="o.value"
-                  :value="o.value"
+              <div class="slider-row">
+                <input
+                  v-model.number="form.mouseSensitivity"
+                  type="range"
+                  min="0.1"
+                  max="3"
+                  step="0.1"
+                  class="slider"
                 >
-                  {{ o.label }}
-                </option>
-              </select>
+                <span class="slider-value">{{ Number(form.mouseSensitivity).toFixed(1) }}×</span>
+              </div>
             </div>
             <div class="row">
               <label class="row-label">鼠标加速度</label>
@@ -194,48 +208,45 @@ onMounted(async () => {
             </h3>
             <div class="row">
               <label class="row-label">竖向滚动灵敏度</label>
-              <select
-                v-model="form.verticalScrollSensitivity"
-                class="select"
-              >
-                <option
-                  v-for="o in sensitivityOptions"
-                  :key="o.value"
-                  :value="o.value"
+              <div class="slider-row">
+                <input
+                  v-model.number="form.verticalScrollSensitivity"
+                  type="range"
+                  min="0.1"
+                  max="3"
+                  step="0.1"
+                  class="slider"
                 >
-                  {{ o.label }}
-                </option>
-              </select>
+                <span class="slider-value">{{ Number(form.verticalScrollSensitivity).toFixed(1) }}×</span>
+              </div>
             </div>
             <div class="row">
               <label class="row-label">横向滚动灵敏度</label>
-              <select
-                v-model="form.horizontalScrollSensitivity"
-                class="select"
-              >
-                <option
-                  v-for="o in sensitivityOptions"
-                  :key="o.value"
-                  :value="o.value"
+              <div class="slider-row">
+                <input
+                  v-model.number="form.horizontalScrollSensitivity"
+                  type="range"
+                  min="0.1"
+                  max="3"
+                  step="0.1"
+                  class="slider"
                 >
-                  {{ o.label }}
-                </option>
-              </select>
+                <span class="slider-value">{{ Number(form.horizontalScrollSensitivity).toFixed(1) }}×</span>
+              </div>
             </div>
             <div class="row">
               <label class="row-label">边缘持续移动速度</label>
-              <select
-                v-model="form.edgeMoveSpeed"
-                class="select"
-              >
-                <option
-                  v-for="o in sensitivityOptions"
-                  :key="o.value"
-                  :value="o.value"
+              <div class="slider-row">
+                <input
+                  v-model.number="form.edgeMoveSpeed"
+                  type="range"
+                  min="1"
+                  max="20"
+                  step="1"
+                  class="slider"
                 >
-                  {{ o.label }}
-                </option>
-              </select>
+                <span class="slider-value">{{ Math.round(form.edgeMoveSpeed) }}px</span>
+              </div>
             </div>
           </section>
 
@@ -520,6 +531,45 @@ onMounted(async () => {
 
 .btn-reset:hover {
   background: #fef2f2;
+}
+
+/* 灵敏度滑块行：滑块 + 数值显示 */
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  max-width: 200px;
+}
+
+.slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #e5e7eb;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+/* 滑块拖动点（WebKit/Chromium） */
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #3b82f6;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.slider-value {
+  min-width: 42px;
+  text-align: right;
+  font-size: 13px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 侧滑动画 */
