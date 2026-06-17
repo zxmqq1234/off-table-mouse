@@ -11,17 +11,19 @@
  *  - focusable:false → 不抢焦点，不影响当前活动窗口
  *  - 覆盖所有显示器合集 bounds，使多显示器环境下鼠标在任何屏幕都能显示动效
  *  - DOM 坐标需减去窗口左上角偏移（getCursorScreenPoint 是绝对屏幕坐标）
+ *  - 动效触发改用 webContents.executeJavaScript 直接调用 window.playEffect，
+ *    绕过 IPC + contextBridge 链路（此前 webContents.send 存在接收不可靠问题）
  *
  * dev/prod 都用 file:// 加载 overlay.html（纯 HTML+CSS+JS，不依赖 Vite 构建）
  */
-const { BrowserWindow, screen, ipcMain } = require('electron')
+const { BrowserWindow, screen } = require('electron')
 const path = require('path')
 
 let overlayWindow = null
 // overlay 窗口左上角绝对屏幕坐标（用于把 getCursorScreenPoint 转为窗口内 DOM 坐标）
 let overlayOriginX = 0
 let overlayOriginY = 0
-// overlay 页面是否已就绪（收到页面注册的回调才认为就绪，避免 IPC 发到未就绪页面丢失）
+// overlay 页面是否已就绪（did-finish-load + 500ms 缓冲后设为 true）
 let overlayReady = false
 // 缓冲就绪前触发的动效（页面就绪后补发）
 const pendingEffects = []
@@ -33,7 +35,6 @@ const pendingEffects = []
 function computeUnionBounds() {
   const displays = screen.getAllDisplays()
   if (displays.length === 0) {
-    // 兜底：主显示器
     return screen.getPrimaryDisplay().bounds
   }
   let minX = Infinity, minY = Infinity, maxRight = -Infinity, maxBottom = -Infinity
@@ -77,7 +78,7 @@ function createOverlay() {
     fullscreenable: false,
     focusable: false,
     hasShadow: false,
-    show: true, // 直接显示（不依赖 ready-to-show，透明窗口该事件可能不触发）
+    show: true,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -85,36 +86,41 @@ function createOverlay() {
     }
   })
 
-  // 最高置顶级别（覆盖在所有窗口之上，包括全屏应用）
+  // 最高置顶级别
   overlayWindow.setAlwaysOnTop(true, 'screen-saver')
-  // 鼠标穿透：所有鼠标事件透传到下层窗口（不转发，overlay 不需要鼠标事件）
+  // 鼠标穿透
   overlayWindow.setIgnoreMouseEvents(true)
 
-  // 加载 overlay 页面（纯 HTML，dev/prod 都用 file://）
   overlayWindow.loadFile(path.join(__dirname, 'overlay.html'))
 
-  // 内容就绪诊断（窗口已直接 show，这里只记录日志）
   overlayWindow.once('ready-to-show', () => {
     console.log('[overlay] ready-to-show')
   })
 
-  // 加载失败诊断
   overlayWindow.webContents.on('did-fail-load', (_e, code, desc) => {
     console.error('[overlay] 页面加载失败:', code, desc)
   })
 
-  // 加载完成诊断
-  overlayWindow.webContents.on('did-finish-load', () => {
-    console.log('[overlay] 页面已加载')
-  })
-
-  // 把 overlay 页面的 console.log 实时转发到主进程终端（便于诊断）
+  // 把 overlay 页面的 console.log 转发到主进程终端
   overlayWindow.webContents.on('console-message', (_event, level, message, _line, _sourceId) => {
     const tag = level === 2 ? 'warn' : level === 3 ? 'error' : 'info'
     console.log(`[overlay:${tag}] ${message}`)
   })
 
-  // 兜底：1.5 秒后强制标记就绪并 show（防止 ready-to-show 不触发导致窗口永远不显示）
+  // 页面加载完成 + 500ms 缓冲后标记就绪（页面自检脚本在 2s 后触发，足够）
+  overlayWindow.webContents.on('did-finish-load', () => {
+    console.log('[overlay] 页面已加载')
+    setTimeout(() => {
+      overlayReady = true
+      console.log('[overlay] 页面已就绪')
+      while (pendingEffects.length > 0) {
+        const { effect, text } = pendingEffects.shift()
+        _sendEffect(effect, text)
+      }
+    }, 500)
+  })
+
+  // 兜底：1.5 秒后强制 show
   setTimeout(() => {
     if (overlayWindow && !overlayWindow.isDestroyed() && !overlayWindow.isVisible()) {
       overlayWindow.show()
@@ -122,36 +128,14 @@ function createOverlay() {
     }
   }, 1500)
 
-  // 浏览器自动测试定位：页面就绪后 3 秒自动触发一次涟漪，确认全链路通
-  let autoTestDone = false
-
-  // 监听 overlay 页面就绪信号
-  ipcMain.once('otm:overlay-ready', () => {
-    overlayReady = true
-    console.log('[overlay] 页面已就绪')
-    // 补发缓冲的动效
-    while (pendingEffects.length > 0) {
-      const { effect, text } = pendingEffects.shift()
-      _sendEffect(effect, text)
-    }
-    // 自动测试：3 秒后触发一次涟漪，验证全链路
-    if (!autoTestDone) {
-      autoTestDone = true
-      setTimeout(() => {
-        console.log('[overlay] 自动测试: 发送触摸涟漪')
-        _sendEffect('touch')
-      }, 3000)
-    }
-  })
-
-  // 窗口意外关闭时不销毁引用清理（避免下次 trigger 报错）
+  // 窗口意外关闭时清理引用
   overlayWindow.on('closed', () => {
     overlayWindow = null
   })
 }
 
 /**
- * 实际向 overlay 页面发送动效 IPC（内部方法）
+ * 实际向 overlay 页面发送动效（直接 executeJavaScript 调用 window.playEffect）
  * @param {string} effect
  * @param {string} [text]
  */
@@ -163,8 +147,11 @@ function _sendEffect(effect, text) {
   const point = screen.getCursorScreenPoint()
   const x = point.x - overlayOriginX
   const y = point.y - overlayOriginY
-  console.log('[diag] _sendEffect: 发送IPC', { x, y, effect, text }, '窗口可见:', overlayWindow.isVisible())
-  overlayWindow.webContents.send('otm:overlay-effect', { x, y, effect, text })
+  const js = `window.playEffect(${JSON.stringify({ x, y, effect, text })})`
+  console.log('[diag] _sendEffect: executeJS', { x, y, effect, text }, '窗口可见:', overlayWindow.isVisible())
+  overlayWindow.webContents.executeJavaScript(js).catch(err => {
+    console.error('[overlay] executeJavaScript 失败:', err.message || err)
+  })
 }
 
 /**
@@ -174,7 +161,6 @@ function _sendEffect(effect, text) {
  */
 function triggerEffect(effect, text) {
   console.log('[diag] triggerEffect 调用:', effect, 'overlayReady:', overlayReady)
-  // 页面未就绪时缓冲（最多缓冲 20 个，防止积压）
   if (!overlayReady) {
     console.log('[diag] triggerEffect: 页面未就绪，缓冲')
     if (pendingEffects.length < 20) pendingEffects.push({ effect, text })
@@ -183,9 +169,6 @@ function triggerEffect(effect, text) {
   _sendEffect(effect, text)
 }
 
-/**
- * 销毁 overlay 窗口（应用退出时调用）
- */
 function destroyOverlay() {
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     try { overlayWindow.destroy() } catch (_e) { /* 忽略 */ }

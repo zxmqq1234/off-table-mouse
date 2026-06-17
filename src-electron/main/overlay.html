@@ -142,7 +142,7 @@
      * 在指定坐标创建并播放射效
      * @param {{x:number, y:number, effect:string, text?:string}} data
      */
-    function playEffect(data) {
+    window.playEffect = function (data) {
       const { x, y, effect, text } = data || {}
       console.log('[overlay-diag] playEffect 收到:', JSON.stringify(data))
       if (typeof x !== 'number' || typeof y !== 'number') {
@@ -187,14 +187,17 @@
       }
     }
 
-    // preload 注入的全局回调，接收主进程 IPC 消息
-    // 安全约束：contextIsolation=true，通过 contextBridge 暴露受控接口
-    if (typeof window.overlayEffect !== 'undefined' && typeof window.overlayEffect.onEffect === 'function') {
-      window.overlayEffect.onEffect(playEffect)
-      console.log('[overlay-diag] overlayEffect.onEffect 注册成功')
-    } else {
-      console.error('[overlay-diag] overlayEffect.onEffect 未找到，动效将不可用')
-    }
+    // 页面自检：2 秒后自动在窗口中央触发一次涟漪，确认渲染引擎正常
+    setTimeout(function () {
+      const cx = window.innerWidth / 2
+      const cy = window.innerHeight / 2
+      console.log('[overlay-diag] 页面自检: 触发中间涟漪', { cx, cy })
+      window.playEffect({ x: cx, y: cy, effect: 'touch' })
+      // 再 0.8 秒后触发手势气泡
+      setTimeout(function () {
+        window.playEffect({ x: cx, y: cy - 80, effect: 'gesture', text: 'OVERLAY ✓' })
+      }, 800)
+    }, 2000)
   </script>
 </body>
 
