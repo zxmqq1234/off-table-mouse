@@ -52,6 +52,9 @@
       "build/**/*",
       "package.json"
     ],
+    "asarUnpack": [
+      "node_modules/@nut-tree-fork/**"
+    ],
     "win": {
       "target": [
         "nsis"
