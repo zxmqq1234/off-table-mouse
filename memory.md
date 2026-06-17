@@ -40,9 +40,10 @@
 - 第3期-预留入口：9 条（置灰）
 
 ## Git 配置
-- 远程：Gitee
+- 远程：`git@gitee.com:ye_zhongji/off-table-mouse.git`（SSH）
 - user.name：`ye_zhongji`
-- **仓库尚未初始化**（待开始开发时执行，第一条任务）
+- **Worktree 模式**：每个板块独立分支 + worktree，位于 `.worktrees/`（已 gitignore）
+- 分支命名：`类型/YYYYMMDD-简要事项`
 
 ## lark-cli 配置
 - 版本：1.0.55
@@ -61,17 +62,26 @@
 
 ## 状态记录
 - **2026-06-17**：飞书项目表建立完成，63 条任务含依赖关系全部就位。
-- **2026-06-17**：Git 仓库初始化（main 推送），关联 Gitee（SSH）。远程：`git@gitee.com:ye_zhongji/off-table-mouse.git`
-- **2026-06-17**：项目骨架完成（分支 `功能/20260617-项目骨架`，已推送）。Electron+Vue3+Vite+协议定义。npm install / 双向 vite build / lint 均通过。Electron GUI 启动需在 Windows 验证（本机 Linux 无桌面库）。
-  - 已完成：Git初始化、目录脚手架、package.json依赖、构建脚本、lint配置（飞书 #1/2/3/5/6）
-  - 待做：nut.js 集成与 Windows 输入模拟验证（#4，需 Windows 环境）
-  - 待做：电脑端服务层（HTTP/WS/二维码/Token/连接管理）
+- **2026-06-17**：Git 仓库初始化 + 项目骨架（合并 main）。Electron+Vue3+Vite+协议定义。
+- **2026-06-17**：并行开发板块A（连接管理）+ 板块B（输入模拟），各自独立 worktree/分支，已完成推送。
+  - **板块A 连接管理**（分支 `功能/20260617-连接管理服务`，worktree `.worktrees/conn`）：network/token/qrcode/connection/http-server/ws-server/index 共7文件。冒烟测试通过。新增依赖 `ws@^8.21.0`。
+  - **板块B 输入模拟**（分支 `功能/20260617-输入模拟层`，worktree `.worktrees/input`）：adapter/mock-adapter/nutjs-adapter/keymap/mouse-controller/keyboard-controller/shortcut-controller/index 共8文件。mock 冒烟测试通过。适配器模式，当前 mock，Windows 切 nutjs。
+  - 两板块通过 `shared/protocol.js` 契约解耦：A 转发 `control` 事件 → B 的 `dispatchEvent(message)` 执行。
+- **飞书表**：基础设施6 + 板块A连接管理12 + 板块B输入模拟4 = 共22条已完成。
+
+## 待决策/待办
+1. **双指滑动手势方向**：PRD 9.5（"左→右滑=后退"）与板块B实现存在反向解读，实机手感确认后可能需对调两行映射（`shortcut-controller.js` 已注释标明）
+2. **nut.js Windows 验证**：板块B 代码已写好，需在 Windows 装 `@nut-tree-fork/nut-js` + electron-rebuild 实测
+3. **两分支合并 main**：板块A、B 分支已推送，待老板授权是否合并
+4. **主进程集成**：`src-electron/main/index.js` 需在 `app.whenReady()` 调 `startServices()` 并订阅事件驱动 GUI（板块A/B 合并后做）
+5. **下一步板块**：手机端基础（连接页 #20 + 主控制布局 #21），依赖板块A WS协议
 
 ## 关键路径与工具备忘
-- npm install 已跑通（547 包），node v22.22.3
+- node v22.22.3 / npm 10.9.8
 - 桌面端 vite dev 端口 5173，手机端 5174
 - electron 主进程：`src-electron/main/index.js`，生产加载 `dist-desktop/index.html`
-- 手机端生产构建产物 `dist-mobile/`，由电脑端 HTTP 服务托管（待实现）
-- nut.js 待集成：注意 v4 需 license，应用免费版 v3.1.x；Windows 原生模块需 electron-rebuild
+- 手机端生产构建产物 `dist-mobile/`，由电脑端 HTTP 服务托管（板块A 已实现 http-server）
+- 板块A 入口：`require('./server').startServices(opts)`，事件 `on('status'|'connect_request'|'qrcode'|'control'|'disconnect'|'error')`
+- 板块B 入口：`require('./control').initController(settings)` + `dispatchEvent(message, settings)`
 - lark-cli 文件参数必须用相对路径（当前目录内）
 
