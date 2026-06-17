@@ -81,7 +81,7 @@ cd off-table-mouse
 npm install
 ```
 
-### 2. 启动服务
+### 2. 开发模式运行
 
 ```bash
 npm run dev
@@ -95,7 +95,18 @@ npm run dev
 
 > ⚡ 同一局域网下，扫完即连，无需任何配置。
 
-### 4. 开始操控
+### 4. 构建可执行程序
+
+```bash
+# 构建 Windows 安装包（输出到 release/ 目录）
+npm run build:win
+```
+
+> 这条命令会依次执行：
+> 1. `vite build` — 打包桌面端 UI 和手机端网页
+> 2. `electron-builder` — 将 Electron 应用 + 原生模块打包成 Windows 安装程序（.exe）
+>
+> 安装包位于 `release/桌外鼠标 Setup 1.0.0.exe`，双击安装即可使用。
 
 | 操作 | 效果 |
 |------|------|
