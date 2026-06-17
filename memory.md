@@ -85,3 +85,12 @@
 - 板块B 入口：`require('./control').initController(settings)` + `dispatchEvent(message, settings)`
 - lark-cli 文件参数必须用相对路径（当前目录内）
 
+## 状态记录（追加）
+- **2026-06-17**：板块A《连接管理服务层》完成（分支 `功能/20260617-连接管理服务`，worktree `.worktrees/conn`）。
+  - 已实现文件：`src-electron/core/{network,token,qrcode,connection}.js` + `src-electron/server/{http-server,ws-server,index}.js`
+  - 核心能力：局域网IP识别、一次性Token（刷新即失效）、二维码、HTTP服务（静态托管/开发代理）、WS服务（Token鉴权+应用层心跳+控制事件转发）、连接状态机、单设备限制、用户确认、强制断开
+  - 验证：`node --check` 全过、`npx eslint src-electron/server src-electron/core` 零警告、冒烟测试通过（错误token拒绝/正确token批准/ping-pong/控制事件转发/强制断开/状态机流转）
+  - 依赖：`ws@^8.21.0` 已写入 `dependencies`
+  - 对接板块B（控制层）：`server/index.js` 通过 EventEmitter `'control'` 事件转发 message（结构 = protocol.js 通用字段 `{type,token,clientId,timestamp,payload}`，type 见 EventType 枚举）。板块B订阅 `services.on('control', message => ...)` 消费即可
+  - 集成点（合并阶段再做）：`src-electron/main/index.js` 在 `app.whenReady()` 后调 `require('./server').startServices()`，订阅 `on('qrcode'/'status'/'connect_request'/'disconnect'/'error')` 驱动 GUI；用户确认按钮调 `approveConnect()/rejectConnect()`
+
