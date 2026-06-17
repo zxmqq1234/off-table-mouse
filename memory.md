@@ -92,7 +92,12 @@
 - **2026-06-18**：动效修复 + 滚动调参（直接在 main 上提交，未设分支/worktree，因为改动直接推到 main 更轻量）。
   - **动效不显示根因**（第一轮）：`contextIsolation=true` 下 preload 的 `window.__overlayEffect__` 与页面 `window` 隔离，页面拿不到该函数 → 改为 `contextBridge.exposeInMainWorld('overlayEffect', { onEffect })`
   - **动效不显示根因**（第二轮，彻底修复）：`contextBridge` + `webContents.send` + `ipcRenderer.on` 链路仍然存在接收不可靠问题（偶发回调不触发）。彻底放弃 IPC 方案，改用 `overlayWindow.webContents.executeJavaScript('window.playEffect(...)')` 直调，绕过所有中间层。preload 仅保留就绪通知。overlay.html 的 `playEffect` 改为 `window.playEffect` 全局函数，2s 后自动触发自检（窗口中央涟漪+气泡，不依赖鼠标光标）。`overlayReady` 改为 `did-finish-load` + 500ms 后标记。
-  - **滚动灵敏度**：默认值 2.0→5.0，滑块范围 max 10→20、step 0.5、min 0.5。配合之前的 STEP=40 SCROLL_BASE=10，手感大幅提升
+  - **滚动灵敏度**：默认值 2.0→5.0，滑块范围 max 10→20、step 0.5、min 0.5
+- **2026-06-18**：动效视觉美化 + 诊断完成。
+  - **颜色区分**：单指触碰蓝色(#3b82f6)，多指手势琥珀色(#f59e0b)，前进/返回橙色(#f97316)
+  - **字体放大**：16px→24px，加粗700，间距加大
+  - **动效加强**：前进→从右滑入，←返回从左滑入，带方向箭头(28px)
+  - **诊断清理**：overlay控制台日志转发到主进程，可视化OVERLAY指示标。配合之前的 STEP=40 SCROLL_BASE=10，手感大幅提升
 
 ## 待决策/待办
 1. **【最关键】Windows 端到端实跑验证**：控制层是 mock，需 Windows 装 `@nut-tree-fork/nut-js` + electron-rebuild，切 `control/index.js` ADAPTER_TYPE='nutjs' 后实测全流程

@@ -44,6 +44,8 @@ let servicesRunning = false
 let tray = null
 /** 是否正在真正退出（区分"最小化到托盘"与"退出应用"） */
 let isQuitting = false
+/** overlay 是否已创建（防重复，白屏预防兜底用） */
+let overlayCreated = false
 
 /**
  * 创建主窗口并加载 GUI
@@ -299,6 +301,7 @@ function refreshTrayMenu() {
  * 创建动效 overlay 窗口（异常保护，失败不阻断主功能）
  */
 function createOverlayWrapper() {
+  overlayCreated = true
   try {
     overlay.createOverlay()
     logger.log('info', '动效 overlay 窗口已创建')
@@ -610,8 +613,20 @@ async function startApp() {
   // 1.1 创建系统托盘（任务6，PRD P1 #54；失败不阻断主功能）
   createTray()
 
-  // 1.2 创建动效 overlay 窗口（透明置顶穿透，显示鼠标位置涟漪/手势气泡）
-  createOverlayWrapper()
+  // 1.2 创建动效 overlay 窗口（等主窗口加载完成再创建，避免白屏）
+  //     开发模式下因 Vite 偶尔未完全就绪，loadURL 可能返回空白，
+  //     提前创建 overlay 窗口（透明 GPU 实例）会抢占 GPU 资源加重白屏。
+  mainWindow.webContents.on('did-finish-load', () => {
+    // 主窗口加载完成后延迟 500ms 再创建 overlay
+    setTimeout(createOverlayWrapper, 500)
+  })
+  // 兜底：6 秒后如果 overlay 还没创建，强制创建
+  setTimeout(() => {
+    if (!overlayCreated) {
+      overlayCreated = true
+      createOverlayWrapper()
+    }
+  }, 6000)
 
   // 2. 初始化控制层（鼠标/键盘/快捷键适配器），传入加载到的设置
   control.initController(settings)
