@@ -7,11 +7,13 @@
  *      • 双指手势受 settings.enableTwoFingerGesture 控制
  *      • 三指手势受 settings.enableThreeFingerGesture 控制
  *
- * 手势 → 快捷键映射（依据任务说明 + PRD 9.5/9.6）：
+ * 手势 → 快捷键映射（依据任务说明 + PRD 9.5/9.6 + 触摸板体验升级）：
  *   two_finger_swipe_left  → ['Alt', 'Right']（前进）
  *   two_finger_swipe_right → ['Alt', 'Left']（返回/后退）
+ *   three_finger_tap       → 鼠标中键（中键点击，用于打开链接新标签等）
+ *   three_finger_swipe_up  → ['Win', 'Tab']（多任务视图/任务栏）
+ *   three_finger_swipe_down → ['Win', 'D']（显示桌面/最小化全部）
  *   three_finger_swipe_left / right → ['Alt', 'Tab']（任务切换）
- *   three_finger_swipe_up   → ['Win', 'D']（回桌面）
  *
  * ⚠️ 关于双指方向（实机反馈调整）：
  *   用户习惯：向右滑 = 返回（Alt+Left 后退），向左滑 = 前进（Alt+Right）。
@@ -48,11 +50,17 @@ function gestureToKeys(gesture) {
       return ['Alt', 'Left']
     case GestureType.THREE_FINGER_SWIPE_LEFT:
     case GestureType.THREE_FINGER_SWIPE_RIGHT:
-      // 任务切换（简化为单次 Alt+Tab）
+      // 三指左右滑 = 任务切换（Alt+Tab）
       return ['Alt', 'Tab']
     case GestureType.THREE_FINGER_SWIPE_UP:
-      // 回桌面
+      // 三指上滑 = 多任务视图（Win+Tab）
+      return ['Win', 'Tab']
+    case GestureType.THREE_FINGER_SWIPE_DOWN:
+      // 三指下滑 = 显示桌面（Win+D）
       return ['Win', 'D']
+    case GestureType.THREE_FINGER_TAP:
+      // 三指轻点 = 鼠标中键（特殊处理，返回 null，由专门逻辑发中键点击）
+      return null
     default:
       return null
   }
@@ -63,7 +71,9 @@ function isThreeFinger(gesture) {
   return (
     gesture === GestureType.THREE_FINGER_SWIPE_LEFT ||
     gesture === GestureType.THREE_FINGER_SWIPE_RIGHT ||
-    gesture === GestureType.THREE_FINGER_SWIPE_UP
+    gesture === GestureType.THREE_FINGER_SWIPE_UP ||
+    gesture === GestureType.THREE_FINGER_SWIPE_DOWN ||
+    gesture === GestureType.THREE_FINGER_TAP
   )
 }
 
@@ -151,6 +161,11 @@ function handleGesture(type, payload = {}) {
 
     const keys = gestureToKeys(gesture)
     if (!keys) {
+      // 三指轻点 = 中键点击（特殊处理，不走 pressShortcut）
+      if (gesture === GestureType.THREE_FINGER_TAP) {
+        safeRun(adapter.clickMouse('middle', 1), `gesture(${gesture})`)
+        return
+      }
       console.warn(`[shortcut-controller] 未知手势，无法映射: "${gesture}"`)
       return
     }

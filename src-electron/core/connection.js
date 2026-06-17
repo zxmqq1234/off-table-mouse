@@ -196,22 +196,19 @@ class ConnectionManager extends EventEmitter {
   }
 
   /**
-   * 启动心跳检测
-   * - 定时（HEARTBEAT_INTERVAL）通过 ws-server 向客户端发送应用层 ping
-   * - 定时检查 lastPong，超过 HEARTBEAT_TIMEOUT 判定断线并清理
+   * 启动心跳检测（被动模式）
+   *
+   * 心跳架构说明（修复双向心跳冲突）：
+   *  - 手机端每 HEARTBEAT_INTERVAL 主动发 ping，电脑端 ws-server 自动回 pong
+   *  - 电脑端【不主动发 ping】（旧版双向互发导致电脑端 ping 手机不回 pong → 误判超时断开）
+   *  - 电脑端只做超时检测：若 HEARTBEAT_TIMEOUT 内未收到手机的任何 ping（onPing 调用），
+   *    判定断线。收到 ping 即刷新 lastPong。
    */
   startHeartbeat() {
     this.stopHeartbeat()
     this.lastPong = Date.now()
 
-    // 定时发送 ping
-    this.heartbeatTimer = setInterval(() => {
-      if (this.wsServer) {
-        this.wsServer.sendToClient(buildMessage(EventType.PING))
-      }
-    }, HEARTBEAT_INTERVAL)
-
-    // 定时检查心跳超时
+    // 仅保留超时检测定时器（不主动发 ping）
     this.timeoutTimer = setInterval(() => {
       if (Date.now() - this.lastPong > HEARTBEAT_TIMEOUT) {
         this.cleanup('heartbeat_timeout')

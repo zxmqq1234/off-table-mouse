@@ -7,7 +7,7 @@
  * 支持的手势（对应 PRD 第9节）：
  * - 单指：点击 / 双击 / 移动 / 长按 / 长按后拖拽
  * - 双指：双指点击（右键）/ 双指长按（右键）/ 水平滑动（前进后退）
- * - 三指：水平滑动（任务切换）/ 垂直上滑（回桌面）
+ * - 三指：轻点（中键）/ 水平滑动（切换窗口）/ 垂直上滑（多任务）/ 垂直下滑（显示桌面）
  *
  * 多指追踪：用 touch.identifier 区分手指，维护 touches Map。
  */
@@ -43,6 +43,7 @@ function centroid(points) {
  * @param {()=>void} [callbacks.onTwoFingerLongPress] 双指长按（右键；双指落下静止超过 longPressThreshold 触发）
  * @param {(dir:'left'|'right')=>void} [callbacks.onTwoFingerSwipe] 双指水平滑动
  * @param {(dir:'left'|'right'|'up')=>void} [callbacks.onThreeFingerSwipe] 三指滑动
+ * @param {()=>void} [callbacks.onThreeFingerTap] 三指轻点（中键）
  * @param {object} [settings] 灵敏度 / 阈值设置（见 constants.DEFAULT_SETTINGS）
  */
 export function createGestureRecognizer(callbacks = {}, settings = {}) {
@@ -232,17 +233,26 @@ export function createGestureRecognizer(callbacks = {}, settings = {}) {
     }
 
     if (start.count === 3) {
-      // 三指：水平 → 任务切换；垂直上滑 → 回桌面
+      // 三指：水平 → 切换窗口；垂直上滑 → 多任务视图；垂直下滑 → 显示桌面；短时小位移 → 三指轻点（中键）
       if (adx >= SWIPE_DISTANCE_THRESHOLD && adx > ady) {
         fire('onThreeFingerSwipe', dx > 0 ? 'right' : 'left')
         gestureDecided = true
         return true
       }
-      if (ady >= SWIPE_DISTANCE_THRESHOLD && ady > adx && dy < 0) {
-        // dy<0 表示从下往上滑
-        fire('onThreeFingerSwipe', 'up')
+      if (ady >= SWIPE_DISTANCE_THRESHOLD && ady > adx) {
+        // dy<0 上滑 → 多任务；dy>0 下滑 → 显示桌面
+        fire('onThreeFingerSwipe', dy < 0 ? 'up' : 'down')
         gestureDecided = true
         return true
+      }
+      // 三指轻点：位移小且时间短（在 onTouchEnd 首指离开时判定）
+      if (adx < TAP_MOVE_THRESHOLD && ady < TAP_MOVE_THRESHOLD) {
+        const elapsed = Date.now() - start.time
+        if (elapsed < cfg.clickThreshold) {
+          fire('onThreeFingerTap')
+          gestureDecided = true
+          return true
+        }
       }
     }
     return false

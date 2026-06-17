@@ -78,6 +78,8 @@ async function startServices(options = {}) {
       onConnectRequest: (tokenArg, ws, req) => connection.requestConnect(tokenArg, ws, req),
       // 控制事件：转发给总线，供板块B（控制层）订阅
       onControlEvent: message => bus.emit('control', message),
+      // 手机 ping：刷新电脑端心跳活跃时间（被动心跳模式）
+      onPing: () => connection.onPong(),
       // 心跳响应
       onPong: () => connection.onPong(),
       // 连接断开
