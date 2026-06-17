@@ -22,12 +22,13 @@
  *   渲染进程 -> 主进程（invoke）：otm:get-settings
  */
 
-const { app, BrowserWindow, ipcMain, clipboard } = require('electron')
+const { app, BrowserWindow, ipcMain, clipboard, Tray, Menu, nativeImage, nativeTheme } = require('electron')
 const path = require('path')
 
 const server = require('../server')
 const control = require('../control')
 const settingsStore = require('../core/settings')
+const logger = require('../core/logger')
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -37,6 +38,10 @@ let mainWindow = null
 let settings = null
 /** 服务是否在运行（用于退出时避免重复清理） */
 let servicesRunning = false
+/** 系统托盘实例（任务6，最小化到托盘） */
+let tray = null
+/** 是否正在真正退出（区分"最小化到托盘"与"退出应用"） */
+let isQuitting = false
 
 /**
  * 创建主窗口并加载 GUI
@@ -67,6 +72,19 @@ function createWindow() {
 
   // 页面加载完成后推送一次最新状态/二维码，解决“服务先于窗口就绪”的时序问题
   mainWindow.webContents.on('did-finish-load', pushInitialState)
+
+  // 关闭窗口前拦截：根据设置决定"最小化到托盘"或"正常退出"（任务6，PRD P1 #54）
+  mainWindow.on('close', event => {
+    // 真正退出（托盘菜单"退出" / before-quit）时不拦截
+    if (isQuitting) return
+    // 读取最新设置：开启最小化到托盘则隐藏窗口而非退出应用
+    const current = settingsStore.getSettings()
+    if (current && current.minimizeToTray) {
+      event.preventDefault()
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide()
+    }
+    // minimizeToTray=false 时放行 → 触发 closed → 正常退出流程
+  })
 
   mainWindow.on('closed', () => {
     mainWindow = null
@@ -108,20 +126,169 @@ function pushInitialState() {
 }
 
 /**
+ * 应用主题模式到系统级 nativeTheme（任务3，PRD 7.5 P1 #51）
+ * - system：跟随操作系统
+ * - light：强制浅色
+ * - dark：强制深色
+ * nativeTheme 影响系统标题栏/滚动条等原生 UI 颜色；渲染进程 CSS 另做适配
+ * @param {string} themeMode 'system' | 'light' | 'dark'
+ */
+function applyTheme(themeMode) {
+  try {
+    if (themeMode === 'dark') {
+      nativeTheme.themeSource = 'dark'
+    } else if (themeMode === 'light') {
+      nativeTheme.themeSource = 'light'
+    } else {
+      // system 或未知值：跟随系统
+      nativeTheme.themeSource = 'system'
+    }
+    logger.log('info', `主题已切换：${themeMode}`)
+  } catch (err) {
+    // 某些平台/环境（如 headless）nativeTheme 可能异常，降级忽略
+    logger.log('warn', '应用主题失败：' + (err && err.message ? err.message : err))
+  }
+}
+
+/**
+ * 显示主窗口（托盘"显示"或单击托盘图标时调用）
+ */
+function showMainWindow() {
+  if (!mainWindow) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+/**
+ * 创建系统托盘（任务6，PRD P1 #54）
+ * - 图标用 nativeImage.createEmpty() 占位（无依赖），打包时替换为真实 .ico/.png
+ * - 菜单：显示主窗口 / 退出应用
+ * - 单击托盘图标：切换主窗口显示/隐藏
+ * 失败时仅记录日志，不阻断应用启动（某些 Linux 环境无托盘支持）
+ */
+function createTray() {
+  try {
+    // 占位图标：空白图标（打包时需替换为 build/icon.png 等真实资源）
+    const icon = nativeImage.createEmpty()
+    tray = new Tray(icon)
+    tray.setToolTip('桌外鼠标')
+
+    // 右键菜单：显示窗口 / 退出
+    const menu = Menu.buildFromTemplate([
+      {
+        label: '显示主窗口',
+        click: () => showMainWindow()
+      },
+      { type: 'separator' },
+      {
+        label: '退出',
+        click: () => {
+          // 标记真正退出，让 close 事件放行
+          isQuitting = true
+          app.quit()
+        }
+      }
+    ])
+    tray.setContextMenu(menu)
+
+    // 单击托盘图标：切换窗口显示/隐藏
+    tray.on('click', () => {
+      if (!mainWindow) return
+      if (mainWindow.isVisible() && !mainWindow.isMinimized()) {
+        mainWindow.hide()
+      } else {
+        showMainWindow()
+      }
+    })
+    logger.log('info', '系统托盘已创建')
+  } catch (err) {
+    logger.log('warn', '创建托盘失败（可忽略，不影响主功能）：' + (err && err.message ? err.message : err))
+    tray = null
+  }
+}
+
+/**
+ * 根据当前 settings.serverPort 构造 startServices 的端口选项（任务4，PRD 7.5 P1 #52）
+ * - 'auto'：用默认端口（传 undefined 让服务层用 DEFAULT_PORT=8765，占用自动递增）
+ * - 数字：用指定端口（占用时 http-server 仍会自动递增重试，属容错行为）
+ * @returns {{port?: number}}
+ */
+function buildServiceOptions() {
+  const portRaw = settings && settings.serverPort
+  if (portRaw === 'auto' || portRaw == null) {
+    // 自动：不传具体端口，由 http-server 用 DEFAULT_PORT 起步并递增
+    return {}
+  }
+  const num = Number(portRaw)
+  if (Number.isFinite(num) && num > 0 && num < 65536) {
+    return { port: num }
+  }
+  // 非法值降级为自动
+  return {}
+}
+
+/**
+ * 重启服务：先停后启（任务4，端口变更时调用）
+ * 端口变更需要重新监听才能生效，这里用 stop+start 实现；全程 try/catch 保护
+ */
+async function restartServices() {
+  logger.log('info', '正在重启服务（端口变更）...')
+  try {
+    if (servicesRunning) {
+      await server.stopServices()
+      servicesRunning = false
+    }
+  } catch (err) {
+    logger.log('error', '停止旧服务失败：' + (err && err.message ? err.message : err))
+  }
+  try {
+    const info = await server.startServices(buildServiceOptions())
+    servicesRunning = true
+    logger.log('info', `服务已重启：${info.url}`)
+    // 重启后推送新的二维码/地址给 GUI
+    pushInitialState()
+  } catch (err) {
+    logger.log('error', '重启服务失败：' + (err && err.message ? err.message : err))
+    sendToRenderer('otm:error', {
+      message: '端口变更后重启服务失败：' + (err && err.message ? err.message : String(err))
+    })
+  }
+}
+
+/**
  * 订阅 server 事件总线，转发到渲染进程或控制层
  */
 function bindServerEvents() {
-  // 连接状态变化 → GUI 状态徽章
-  server.on('status', data => sendToRenderer('otm:status', data))
+  // 连接状态变化 → GUI 状态徽章 + 关键状态日志（任务2）
+  server.on('status', data => {
+    sendToRenderer('otm:status', data)
+    // 仅记录关键状态，避免 idle/waiting 刷屏
+    if (data && data.state === 'connected') {
+      const dev = data.device || {}
+      logger.log('info', `手机已连接：${dev.deviceName || dev.ip || '未知设备'}`)
+    } else if (data && data.state === 'disconnected') {
+      logger.log('warn', '连接已断开')
+    }
+  })
   // 新二维码生成（刷新时） → GUI 二维码图
   server.on('qrcode', data => sendToRenderer('otm:qrcode', data))
-  // 手机连接请求 → GUI 弹窗确认（携带 { token, device }）
-  server.on('connect_request', clientInfo => sendToRenderer('otm:connect_request', clientInfo))
-  // 连接断开 → GUI 提示
-  server.on('disconnect', data => sendToRenderer('otm:disconnect', data))
-  // 服务异常 → GUI 错误提示
+  // 手机连接请求 → GUI 弹窗确认（携带 { token, device }）+ 日志（任务2）
+  server.on('connect_request', clientInfo => {
+    sendToRenderer('otm:connect_request', clientInfo)
+    const dev = (clientInfo && clientInfo.device) || {}
+    logger.log('info', `收到连接请求：${dev.deviceName || dev.ip || '未知设备'}`)
+  })
+  // 连接断开 → GUI 提示 + 日志（任务2）
+  server.on('disconnect', data => {
+    sendToRenderer('otm:disconnect', data)
+    logger.log('warn', `连接断开：${(data && data.reason) || '未知原因'}`)
+  })
+  // 服务异常 → GUI 错误提示 + 日志（任务2）
   server.on('error', err => {
-    sendToRenderer('otm:error', { message: err && err.message ? err.message : String(err) })
+    const msg = err && err.message ? err.message : String(err)
+    sendToRenderer('otm:error', { message: msg })
+    logger.log('error', '服务异常：' + msg)
   })
   // 控制事件 → 转发控制层执行（不发给渲染进程）
   server.on('control', message => {
@@ -129,6 +296,7 @@ function bindServerEvents() {
       control.dispatchEvent(message, settings)
     } catch (err) {
       console.error('[main] 控制事件执行失败:', err)
+      logger.log('error', '控制事件执行失败：' + (err && err.message ? err.message : err))
     }
   })
 }
@@ -169,6 +337,30 @@ function bindIpcHandlers() {
   ipcMain.on('otm:reset-settings', () => {
     settingsStore.resetSettings()
   })
+
+  // —— 连接日志 IPC（任务2，PRD P1 #50）——
+  // 渲染进程请求最近日志（日志面板打开时拉取历史）
+  ipcMain.handle('otm:get-logs', () => logger.getRecent())
+
+  // —— 开机自启动 IPC（任务5，PRD P1 #53）——
+  // 查询当前开机自启动状态（系统级设置，不入 settings.json）
+  ipcMain.handle('otm:get-autolaunch', () => {
+    try {
+      return !!app.getLoginItemSettings().openAtLogin
+    } catch (err) {
+      logger.log('warn', '读取开机自启动状态失败：' + (err && err.message ? err.message : err))
+      return false
+    }
+  })
+  // 设置开机自启动开关
+  ipcMain.on('otm:set-autolaunch', (_event, enabled) => {
+    try {
+      app.setLoginItemSettings({ openAtLogin: !!enabled })
+      logger.log('info', `开机自启动已${enabled ? '开启' : '关闭'}`)
+    } catch (err) {
+      logger.log('warn', '设置开机自启动失败：' + (err && err.message ? err.message : err))
+    }
+  })
 }
 
 /**
@@ -178,9 +370,47 @@ function bindIpcHandlers() {
  */
 function bindSettingsChange() {
   settingsStore.onChange(next => {
+    const prev = settings
     settings = next
     sendToRenderer('otm:settings', next)
+
+    // 主题模式变更 → 应用到 nativeTheme（任务3，PRD P1 #51）
+    if (!prev || prev.themeMode !== next.themeMode) {
+      applyTheme(next.themeMode)
+    }
+
+    // 服务端口变更 → 重启服务生效（任务4，PRD P1 #52）
+    // prev 为 null 表示初始化阶段，不触发重启（服务尚未启动或刚启动用同一端口）
+    if (prev && prev.serverPort !== next.serverPort) {
+      logger.log('info', `端口设置变更：${prev.serverPort} → ${next.serverPort}`)
+      // 异步重启，不阻塞事件回调；restartServices 内部已有错误处理与日志
+      restartServices()
+    }
+
+    // 最小化到托盘变更（任务6）：仅记录日志，close 事件会实时读取最新设置
+    if (prev && prev.minimizeToTray !== next.minimizeToTray) {
+      logger.log('info', `最小化到托盘已${next.minimizeToTray ? '开启' : '关闭'}`)
+    }
   })
+}
+
+/**
+ * 订阅系统级事件（任务2/3）
+ * - 新增日志 → 推送给渲染进程日志面板
+ * - 系统主题变化 → 推送当前 effective 主题给渲染进程（仅 themeMode=system 时有意义）
+ */
+function bindSystemEvents() {
+  // 新增日志 → 推送给渲染进程日志面板（任务2，PRD P1 #50）
+  logger.onAdd(entry => sendToRenderer('otm:log', entry))
+
+  // 系统主题变化 → 推送当前 effective 主题给渲染进程（任务3，PRD P1 #51）
+  try {
+    nativeTheme.on('updated', () => {
+      sendToRenderer('otm:theme', { shouldUseDarkColors: nativeTheme.shouldUseDarkColors })
+    })
+  } catch (err) {
+    logger.log('warn', '监听系统主题变化失败：' + (err && err.message ? err.message : err))
+  }
 }
 
 /**
@@ -189,9 +419,16 @@ function bindSettingsChange() {
 async function startApp() {
   // 0. 初始化设置模块（从持久化文件加载，失败回退默认值）
   settings = settingsStore.init(app.getPath('userData'))
+  logger.log('info', '应用启动，设置已加载')
+
+  // 0.1 应用初始主题到系统级 nativeTheme（任务3，PRD P1 #51）
+  applyTheme(settings.themeMode)
 
   // 1. 创建窗口
   createWindow()
+
+  // 1.1 创建系统托盘（任务6，PRD P1 #54；失败不阻断主功能）
+  createTray()
 
   // 2. 初始化控制层（鼠标/键盘/快捷键适配器），传入加载到的设置
   control.initController(settings)
@@ -200,17 +437,21 @@ async function startApp() {
   bindServerEvents()
   bindIpcHandlers()
   bindSettingsChange()
+  bindSystemEvents()
 
   // 4. 启动后端服务（HTTP + WebSocket + 二维码 + 连接管理）
   try {
-    const info = await server.startServices()
+    // 端口按 settings.serverPort 构造（任务4）：'auto' 用默认，数字用指定端口
+    const info = await server.startServices(buildServiceOptions())
     servicesRunning = true
     console.log(`[main] 服务已启动：${info.url}`)
+    logger.log('info', `服务已启动：${info.url}`)
     // 服务就绪后推送初始二维码/地址（若窗口已加载完成会立即收到）
     pushInitialState()
   } catch (err) {
     // 启动失败（如获取 IP 失败、端口占用）：通知 GUI 显示错误，不让主进程崩溃
     console.error('[main] 服务启动失败:', err)
+    logger.log('error', '服务启动失败：' + (err && err.message ? err.message : String(err)))
     sendToRenderer('otm:error', {
       message: '服务启动失败：' + (err && err.message ? err.message : String(err))
     })
@@ -232,16 +473,28 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-// 应用退出前清理资源：停止服务 + 销毁控制器
+// 应用退出前清理资源：销毁托盘 + 停止服务 + 销毁控制器
 app.on('before-quit', async event => {
+  logger.log('info', '应用正在退出')
+  // 销毁托盘（任务6）
+  if (tray) {
+    try {
+      tray.destroy()
+    } catch (_e) {
+      /* 忽略销毁异常 */
+    }
+    tray = null
+  }
   if (!servicesRunning) return
   // 阻止立即退出，等异步清理完成后再 exit
   event.preventDefault()
   servicesRunning = false
   try {
     await server.stopServices()
+    logger.log('info', '服务已停止')
   } catch (err) {
     console.error('[main] 停止服务异常:', err)
+    logger.log('error', '停止服务异常：' + (err && err.message ? err.message : err))
   }
   try {
     control.disposeController()

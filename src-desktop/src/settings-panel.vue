@@ -7,8 +7,10 @@
    - 边缘持续移动速度
    - 点击 / 长按 / 双击判定时间
    - 双指 / 三指手势 / 拖拽 / 实时输入开关
-   - 服务端口（仅展示，首版自动）
+   - 服务端口（可编辑，留空=自动）
    - 主题模式
+   - 开机自启动（系统级）
+   - 关闭时最小化到托盘
    - 重置默认
 
   数据流：
@@ -17,7 +19,7 @@
    - 用户改动即时通过 otm.updateSettings(patch) 提交（主进程落盘并下发控制层）
 -->
 <script setup>
-import { reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 
 // visible 通过模板使用，无需在 script 中引用 props 变量
 defineProps({
@@ -43,8 +45,14 @@ const form = reactive({
   enableDrag: true,
   enableRealtimeInput: true,
   serverPort: 'auto',
-  themeMode: 'system'
+  themeMode: 'system',
+  minimizeToTray: true
 })
+
+// 开机自启动状态（系统级，独立于 settings.json；通过 IPC 读写）
+const autoLaunch = ref(false)
+// 端口输入临时值：'auto' 时输入框留空，聚焦时提示
+const portInput = ref('')
 
 // 标记是否正在用主进程推送回填，避免回填触发 watch 又提交一次
 let syncing = false
@@ -70,10 +78,35 @@ function applySettings(data) {
   Object.keys(form).forEach(key => {
     if (key in data) form[key] = data[key]
   })
+  // 端口回填到输入框：'auto' 显示空（占位提示"自动"）
+  portInput.value = form.serverPort === 'auto' ? '' : String(form.serverPort)
   // 下个微任务后解除 syncing 标志，让后续用户改动能正常提交
   Promise.resolve().then(() => {
     syncing = false
   })
+}
+
+/** 端口输入框失焦：空值=自动，数字=指定端口 */
+function onPortBlur() {
+  const v = portInput.value.trim()
+  if (!v) {
+    form.serverPort = 'auto'
+  } else {
+    const num = Number(v)
+    if (Number.isFinite(num) && num > 0 && num < 65536) {
+      form.serverPort = num
+    } else {
+      // 非法值回退自动
+      portInput.value = ''
+      form.serverPort = 'auto'
+    }
+  }
+}
+
+/** 开机自启动开关 */
+function toggleAutoLaunch() {
+  autoLaunch.value = !autoLaunch.value
+  if (otm) otm.setAutoLaunch(autoLaunch.value)
 }
 
 // 监听表单变化，用户改动时即时提交（syncing 期间的回填不提交）
@@ -96,6 +129,8 @@ onMounted(async () => {
   // 拉取初始设置
   const data = await otm.getSettings()
   applySettings(data)
+  // 拉取开机自启动状态（系统级，独立于 settings.json）
+  autoLaunch.value = await otm.getAutoLaunch()
   // 订阅主进程推送（重置 / 其他途径变更时同步）
   otm.onSettings(next => applySettings(next))
 })
@@ -305,7 +340,40 @@ onMounted(async () => {
             </div>
             <div class="row">
               <label class="row-label">服务端口</label>
-              <span class="readonly-value">{{ form.serverPort === 'auto' ? '自动（8765）' : form.serverPort }}</span>
+              <input
+                v-model="portInput"
+                class="port-input"
+                type="text"
+                placeholder="自动"
+                @blur="onPortBlur"
+              >
+            </div>
+            <p class="port-hint">
+              留空=自动（8765）；填数字=指定端口，保存后自动重启服务生效
+            </p>
+          </section>
+
+          <!-- 应用级行为 -->
+          <section class="group">
+            <h3 class="group-title">
+              应用
+            </h3>
+            <div class="row">
+              <label class="row-label">开机自启动</label>
+              <input
+                :checked="autoLaunch"
+                type="checkbox"
+                class="checkbox"
+                @change="toggleAutoLaunch"
+              >
+            </div>
+            <div class="row">
+              <label class="row-label">关闭时最小化到托盘</label>
+              <input
+                v-model="form.minimizeToTray"
+                type="checkbox"
+                class="checkbox"
+              >
             </div>
           </section>
 
@@ -420,6 +488,22 @@ onMounted(async () => {
 .readonly-value {
   font-size: 13px;
   color: #9ca3af;
+}
+
+.port-input {
+  width: 80px;
+  padding: 4px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: right;
+}
+
+.port-hint {
+  font-size: 11px;
+  color: #9ca3af;
+  margin: 4px 0 0;
+  line-height: 1.4;
 }
 
 .btn-reset {
