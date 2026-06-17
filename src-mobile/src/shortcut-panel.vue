@@ -37,7 +37,10 @@ function send(item) {
 </script>
 
 <template>
-  <div class="scrim">
+  <div
+    class="scrim"
+    @click.self="emit('close')"
+  >
     <div class="sc-panel">
       <div class="sc-bar">
         <span class="sc-title">快捷键</span>

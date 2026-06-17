@@ -8,10 +8,13 @@
  *      • 三指手势受 settings.enableThreeFingerGesture 控制
  *
  * 手势 → 快捷键映射（依据任务说明 + PRD 9.5/9.6）：
- *   two_finger_swipe_left  → ['Alt', 'Left']
- *   two_finger_swipe_right → ['Alt', 'Right']
+ *   two_finger_swipe_left  → ['Alt', 'Right']（前进）
+ *   two_finger_swipe_right → ['Alt', 'Left']（返回/后退）
  *   three_finger_swipe_left / right → ['Alt', 'Tab']（任务切换）
  *   three_finger_swipe_up   → ['Win', 'D']（回桌面）
+ *
+ * ⚠️ 关于双指方向（实机反馈调整）：
+ *   用户习惯：向右滑 = 返回（Alt+Left 后退），向左滑 = 前进（Alt+Right）。
  *
  * ⚠️ 关于 Alt+Tab：
  *   Windows 下 Alt+Tab 会唤起任务切换器，按住 Alt 连续按 Tab 才切换不同窗口；
@@ -38,9 +41,11 @@ let settings = null
 function gestureToKeys(gesture) {
   switch (gesture) {
     case GestureType.TWO_FINGER_SWIPE_LEFT:
-      return ['Alt', 'Left']
-    case GestureType.TWO_FINGER_SWIPE_RIGHT:
+      // 向左滑 = 前进（Alt+Right）
       return ['Alt', 'Right']
+    case GestureType.TWO_FINGER_SWIPE_RIGHT:
+      // 向右滑 = 返回（Alt+Left）
+      return ['Alt', 'Left']
     case GestureType.THREE_FINGER_SWIPE_LEFT:
     case GestureType.THREE_FINGER_SWIPE_RIGHT:
       // 任务切换（简化为单次 Alt+Tab）

@@ -65,13 +65,15 @@ function handleDiff(old, cur) {
   // 其余情况（中间替换等）由 compositionend 兜底，这里忽略
 }
 
-/** input 事件：composition 期间不同步，否则做 diff */
+/** input 事件：composition 期间不同步，否则做 diff，发送后清空输入框 */
 function onInput(e) {
   if (paused.value) return // 输入已暂停：不上屏、不发 WS
   if (isComposing.value) return // 中间态不上屏
   const cur = e.target.value
   handleDiff(lastValue.value, cur)
-  lastValue.value = cur
+  // 发送后清空输入框（老板要求），lastValue 同步清空，避免内容堆积
+  e.target.value = ''
+  lastValue.value = ''
 }
 
 /** composition 开始：进入组合态 */
@@ -79,13 +81,15 @@ function onCompositionStart() {
   isComposing.value = true
 }
 
-/** composition 结束：把确认上屏的文字同步给电脑 */
+/** composition 结束：把确认上屏的文字同步给电脑，然后清空输入框 */
 function onCompositionEnd(e) {
   isComposing.value = false // 始终重置组合态标记，避免暂停后卡在组合态
   if (paused.value) return // 输入已暂停：不同步给电脑
   const cur = e.target.value
   handleDiff(lastValue.value, cur)
-  lastValue.value = cur
+  // 上屏后清空输入框，避免内容堆积影响下次 diff（老板要求发送后清空）
+  e.target.value = ''
+  lastValue.value = ''
 }
 
 /** keydown：处理 Enter / 空值 Backspace（其余由 input diff 处理） */

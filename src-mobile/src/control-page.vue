@@ -47,9 +47,11 @@ const emit = defineEmits(['disconnect', 'settings'])
 // ===== 设置（灵敏度等；后续设置板块接入后改为响应式同步） =====
 const settings = ref({ ...DEFAULT_SETTINGS })
 
-/** 灵敏度档位 → 倍率 */
+/** 灵敏度数值 → 倍率（直接使用数值；兼容旧字符串档位） */
 function sensFactor(level) {
-  return { low: 0.6, medium: 1, high: 1.6 }[level] || 1
+  if (typeof level === 'string') return { low: 0.6, medium: 1, high: 1.6 }[level] || 1
+  const n = Number(level)
+  return Number.isFinite(n) ? n : 1
 }
 
 // 滚动基础放大：手指 1px ≈ 滚轮 N 单位（鼠标滚轮一格约 100~120）
@@ -138,6 +140,12 @@ function toPoints(touchList) {
 function onPadStart(e) {
   e.preventDefault()
   recognizer.onTouchStart(toPoints(e.changedTouches))
+  // 手指按下时也检测边缘停留（某些浏览器手指静止后 touchmove 会降频/停止，
+  // 仅靠 onPadMove 检测可能导致边缘持续移动不触发；按下即开始计时可兜底）
+  if (e.touches.length === 1 && padRef.value) {
+    const rect = padRef.value.getBoundingClientRect()
+    handleEdge(e.touches[0].clientX, e.touches[0].clientY, rect)
+  }
 }
 
 function onPadMove(e) {
@@ -311,14 +319,18 @@ onUnmounted(() => {
         @touchmove="onPadMove"
         @touchend="onPadEnd"
         @touchcancel="onPadEnd"
-      />
+      >
+        <span class="zone-label">触控区</span>
+      </div>
       <div
         class="scroll-vertical"
         @touchstart="onVScrollStart"
         @touchmove="onVScrollMove"
         @touchend="onVScrollStart"
         @touchcancel="onVScrollStart"
-      />
+      >
+        <span class="zone-label">竖向滚动</span>
+      </div>
     </div>
 
     <!-- 底部横向滚动区 -->
@@ -328,7 +340,9 @@ onUnmounted(() => {
       @touchmove="onHScrollMove"
       @touchend="onHScrollStart"
       @touchcancel="onHScrollStart"
-    />
+    >
+      <span class="zone-label">横向滚动</span>
+    </div>
 
     <!-- 底部工具栏 -->
     <div class="toolbar">
@@ -430,6 +444,11 @@ onUnmounted(() => {
   border-radius: 10px;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
+  /* 让文字标签居中 */
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .scroll-vertical {
   width: 52px;
@@ -437,6 +456,10 @@ onUnmounted(() => {
   border-radius: 10px;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* 底部横向滚动 */
@@ -446,6 +469,24 @@ onUnmounted(() => {
   border-radius: 10px;
   touch-action: none;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 区域文字标签：浅灰、不拦截触摸（pointer-events:none） */
+.zone-label {
+  color: #9ca3af;
+  font-size: 13px;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.scroll-vertical .zone-label {
+  /* 竖向滚动区较窄，文字竖排 */
+  writing-mode: vertical-rl;
+  letter-spacing: 2px;
 }
 
 /* 工具栏 */
