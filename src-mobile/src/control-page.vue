@@ -22,7 +22,7 @@ import {
   GestureType,
   EdgeDirection
 } from '@shared/protocol.js'
-import { DEFAULT_SETTINGS } from '@shared/constants.js'
+import { useSettings } from './settings-store.js'
 import { createGestureRecognizer } from './gestures.js'
 import {
   moveMessage,
@@ -46,7 +46,8 @@ const props = defineProps({
 const emit = defineEmits(['disconnect', 'settings'])
 
 // ===== 设置（灵敏度等；后续设置板块接入后改为响应式同步） =====
-const settings = ref({ ...DEFAULT_SETTINGS })
+// 共享设置状态（与 settings-panel 共用同一响应式单例，改设置实时生效）
+const settings = useSettings()
 
 /** 灵敏度数值 → 倍率（直接使用数值；兼容旧字符串档位） */
 function sensFactor(level) {
@@ -82,15 +83,12 @@ let edgeTimer = null
 let edgeDir = null // 当前停留的边缘方向
 let edgeActive = false // 是否已发出 edge_move_start
 
-/** 发送鼠标移动（带灵敏度 + 节流） */
+/** 发送鼠标移动（节流；灵敏度由电脑端 adapter 统一应用，前端只传原始位移） */
 function sendMove(dx, dy, speed) {
   const now = performance.now()
   if (now - lastMoveTs < MOVE_THROTTLE) return
   lastMoveTs = now
-  const f = sensFactor(settings.value.mouseSensitivity)
-  props.wsClient.send(
-    moveMessage(Math.round(dx * f), Math.round(dy * f), speed)
-  )
+  props.wsClient.send(moveMessage(Math.round(dx), Math.round(dy), speed))
 }
 
 // ===== 手势识别器：把语义手势翻译成协议消息 =====
@@ -213,8 +211,8 @@ function onVScrollMove(e) {
   const y = e.changedTouches[0].clientY
   const dy = y - vLastY
   vLastY = y
-  const f = sensFactor(settings.value.verticalScrollSensitivity)
-  props.wsClient.send(scrollMessage(0, Math.round(dy * SCROLL_BASE * f)))
+  // 灵敏度由电脑端 controller 统一应用，前端只传原始位移×基础放大
+  props.wsClient.send(scrollMessage(0, Math.round(dy * SCROLL_BASE)))
 }
 
 // ===== 底部横向滚动区（PRD 8.5） =====
@@ -229,8 +227,8 @@ function onHScrollMove(e) {
   const x = e.changedTouches[0].clientX
   const dx = x - hLastX
   hLastX = x
-  const f = sensFactor(settings.value.horizontalScrollSensitivity)
-  props.wsClient.send(scrollMessage(Math.round(dx * SCROLL_BASE * f), 0))
+  // 灵敏度由电脑端 controller 统一应用
+  props.wsClient.send(scrollMessage(Math.round(dx * SCROLL_BASE), 0))
 }
 
 // ===== 边缘持续移动（PRD 9.4） =====
@@ -261,7 +259,7 @@ function handleEdge(x, y, rect) {
       edgeDir = dir
       edgeTimer = setTimeout(() => {
         edgeActive = true
-        const speed = sensFactor(settings.value.edgeMoveSpeed)
+        const speed = sensFactor(settings.edgeMoveSpeed)
         props.wsClient.send(edgeMoveStartMessage(dir, speed))
       }, EDGE_DELAY)
     }

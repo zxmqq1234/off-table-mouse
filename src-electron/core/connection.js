@@ -78,6 +78,8 @@ class ConnectionManager extends EventEmitter {
     this.wsServer = null
     // DISCONNECTED → IDLE 的延时定时器
     this.idleTimer = null
+    // 是否免确认自动批准连接（由 main/index.js 根据设置同步）
+    this.autoApprove = false
   }
 
   /**
@@ -86,6 +88,14 @@ class ConnectionManager extends EventEmitter {
    */
   setWsServer(wsServer) {
     this.wsServer = wsServer
+  }
+
+  /**
+   * 设置是否免确认自动批准连接
+   * @param {boolean} auto true=扫码后自动连接不弹确认框
+   */
+  setAutoApprove(auto) {
+    this.autoApprove = !!auto
   }
 
   /**
@@ -118,6 +128,20 @@ class ConnectionManager extends EventEmitter {
       // 设备名：从 User-Agent 粗略解析（任务1），便于 GUI 展示区分手机
       deviceName: parseDeviceName(req && req.headers ? req.headers['user-agent'] : null),
       requestedAt: Date.now()
+    }
+
+    // 免确认模式：直接批准连接（仍通知 GUI 设备信息，但不弹确认框）
+    if (this.autoApprove) {
+      const device = {
+        ip: clientInfo.ip,
+        deviceName: clientInfo.deviceName,
+        connectedAt: Date.now()
+      }
+      this.setState(ConnectionState.CONNECTED, device)
+      this.startHeartbeat()
+      // 通知 GUI 有设备连接（用于显示连接信息，但不触发确认弹窗）
+      this.emit('connect_request', { token, device: clientInfo, autoApproved: true })
+      return true
     }
 
     return new Promise(resolve => {

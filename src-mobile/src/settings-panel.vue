@@ -12,9 +12,9 @@
    - 用户改动 → 即时存 localStorage + 通过 wsClient 下发 SETTING_UPDATE 给电脑端
 -->
 <script setup>
-import { reactive, watch, onMounted } from 'vue'
-import { DEFAULT_SETTINGS } from '@shared/constants.js'
+import { watch, onMounted } from 'vue'
 import { EventType, buildMessage } from '@shared/protocol.js'
+import { useSettings, applySettings, resetSettings as resetStore } from './settings-store.js'
 
 const props = defineProps({
   // ws-client 实例（用于下发设置到电脑端）
@@ -22,42 +22,8 @@ const props = defineProps({
 })
 const emit = defineEmits(['close'])
 
-// localStorage 存储键
-const STORAGE_KEY = 'otm-mobile-settings'
-
-// 本地表单（与 DEFAULT_SETTINGS 同结构）
-const form = reactive({ ...DEFAULT_SETTINGS })
-
-/**
- * 从 localStorage 加载上次设置（merge 默认值，保证新版本字段补全）
- */
-function loadFromStorage() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return
-    const saved = JSON.parse(raw)
-    if (saved && typeof saved === 'object') {
-      Object.keys(DEFAULT_SETTINGS).forEach(key => {
-        if (key in saved && saved[key] !== undefined && saved[key] !== null) {
-          form[key] = saved[key]
-        }
-      })
-    }
-  } catch (_e) {
-    // 解析失败忽略，用默认值
-  }
-}
-
-/**
- * 保存到 localStorage
- */
-function saveToStorage() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...form }))
-  } catch (_e) {
-    // 存储满/隐私模式忽略
-  }
-}
+// 共享响应式设置单例（与 control-page 共用，改设置实时生效到控制页）
+const form = useSettings()
 
 /**
  * 把当前设置通过 WS 下发给电脑端（电脑端应用+落盘）
@@ -69,12 +35,12 @@ function syncToDesktop() {
 
 /**
  * 监听表单变化：存 localStorage + 下发电脑端
- * 用 watch deep 监听所有字段变化
+ * applySettings 会自动存 localStorage；这里额外监听变化下发 WS
  */
 watch(
   form,
   () => {
-    saveToStorage()
+    applySettings({ ...form })
     syncToDesktop()
   },
   { deep: true }
@@ -82,14 +48,11 @@ watch(
 
 /** 重置为默认设置 */
 function handleReset() {
-  Object.keys(DEFAULT_SETTINGS).forEach(key => {
-    form[key] = DEFAULT_SETTINGS[key]
-  })
-  // watch 会自动触发存盘+同步
+  resetStore()
+  // watch 会自动触发同步
 }
 
 onMounted(() => {
-  loadFromStorage()
   // 挂载后立即同步一次，确保电脑端与手机端设置一致
   syncToDesktop()
 })

@@ -47,7 +47,8 @@ const form = reactive({
   enableRealtimeInput: true,
   serverPort: 'auto',
   themeMode: 'system',
-  minimizeToTray: true
+  minimizeToTray: true,
+  autoApproveConnect: true
 })
 
 // 开机自启动状态（系统级，独立于 settings.json；通过 IPC 读写）
@@ -382,6 +383,14 @@ onMounted(async () => {
               <label class="row-label">关闭时最小化到托盘</label>
               <input
                 v-model="form.minimizeToTray"
+                type="checkbox"
+                class="checkbox"
+              >
+            </div>
+            <div class="row">
+              <label class="row-label">手机连接免确认</label>
+              <input
+                v-model="form.autoApproveConnect"
                 type="checkbox"
                 class="checkbox"
               >
