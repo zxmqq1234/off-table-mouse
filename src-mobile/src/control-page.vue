@@ -36,6 +36,7 @@ import {
 } from './control-events.js'
 import KeyboardPanel from './keyboard-panel.vue'
 import ShortcutPanel from './shortcut-panel.vue'
+import ReservedPanel from './reserved-panel.vue'
 
 const props = defineProps({
   // ws-client 实例
@@ -57,6 +58,7 @@ const SCROLL_BASE = 6
 // ===== 面板显示状态 =====
 const showKeyboard = ref(false)
 const showShortcut = ref(false)
+const showReserved = ref(false)
 
 // ===== 主触控区元素引用（用于边缘检测取尺寸） =====
 const padRef = ref(null)
@@ -349,6 +351,12 @@ onUnmounted(() => {
         设置
       </button>
       <button
+        class="tool-btn"
+        @click="showReserved = true"
+      >
+        更多
+      </button>
+      <button
         class="tool-btn danger"
         @click="onDisconnect"
       >
@@ -367,6 +375,11 @@ onUnmounted(() => {
       v-if="showShortcut"
       :ws-client="wsClient"
       @close="showShortcut = false"
+    />
+    <!-- 预留功能入口面板（覆盖层，置灰不可点） -->
+    <ReservedPanel
+      v-if="showReserved"
+      @close="showReserved = false"
     />
   </div>
 </template>
