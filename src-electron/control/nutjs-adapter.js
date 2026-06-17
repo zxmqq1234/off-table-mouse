@@ -75,17 +75,31 @@ function createNutjsAdapter() {
     }
   }
 
+  // moveMouse 串行化锁：高频调用时（边缘持续移动 60fps），避免多个 getPosition+setPosition
+  // 并发导致位移丢失（A/B 同时读到旧坐标，都 setPosition 到各自目标，实际只移动一次）。
+  // 用 Promise 链把所有 moveMouse 排成队列，前一个完成才执行下一个。
+  let moveQueue = Promise.resolve()
+
   /**
-   * 鼠标相对移动。
-   * 实现：先取当前坐标，再加上 dx/dy（已含加速度）× 灵敏度倍率（sensitivity 为数值），set 到目标点。
-   * 注：getPosition+setPosition 每帧有少量开销，高频移动性能需在 Windows 实测，
-   *     若有瓶颈可改为缓存上次坐标或使用更底层的 robotjs-style delta API。
+   * 鼠标相对移动（串行化）。
+   * 实现：取当前坐标 + dx/dy×灵敏度，setPosition 到目标点。
+   * 通过 moveQueue 队列确保每次 getPosition 都读到上一次 setPosition 的结果，
+   * 避免高频并发时位移丢失（尤其影响持续向同一方向移动的边缘场景）。
    * 【需 Windows 验证：性能、灵敏度手感】
    */
-  async function moveMouse(dx, dy) {
-    const pos = await mouse.getPosition()
-    const target = new nut.Point(pos.x + Number(dx) * sensitivity, pos.y + Number(dy) * sensitivity)
-    await mouse.setPosition(target)
+  function moveMouse(dx, dy) {
+    moveQueue = moveQueue.then(async () => {
+      const pos = await mouse.getPosition()
+      const target = new nut.Point(
+        pos.x + Number(dx) * sensitivity,
+        pos.y + Number(dy) * sensitivity
+      )
+      await mouse.setPosition(target)
+    }).catch((e) => {
+      // 单次失败不阻断后续队列
+      console.error('[nutjs-adapter] moveMouse 异常:', e && e.message ? e.message : e)
+    })
+    return moveQueue
   }
 
   /**

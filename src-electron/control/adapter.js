@@ -51,8 +51,8 @@ function normalizeSensitivity(value) {
     return LEGACY_SENSITIVITY[value]
   }
   const n = Number(value)
-  if (!Number.isFinite(n)) return 1.0
-  return Math.min(3.0, Math.max(0.1, n))
+  if (!Number.isFinite(n)) return 3.0
+  return Math.min(10.0, Math.max(0.1, n))
 }
 
 /**

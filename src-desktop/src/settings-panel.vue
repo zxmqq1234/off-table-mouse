@@ -31,13 +31,13 @@ const emit = defineEmits(['close'])
 const otm = typeof window !== 'undefined' ? window.otm : undefined
 
 // 本地表单状态（与主进程 settings 同步）
-// 灵敏度统一为数值：鼠标/滚动=倍率(0.1~3.0)，边缘移动=每帧像素(1~20)
+// 灵敏度统一为数值（DPI 风格）：鼠标/滚动=倍率(0.1~10.0)，边缘移动=每帧像素(1~30)
 const form = reactive({
-  mouseSensitivity: 1.0,
+  mouseSensitivity: 3.0,
   mouseAcceleration: true,
-  verticalScrollSensitivity: 1.0,
-  horizontalScrollSensitivity: 1.0,
-  edgeMoveSpeed: 8,
+  verticalScrollSensitivity: 2.0,
+  horizontalScrollSensitivity: 2.0,
+  edgeMoveSpeed: 12,
   clickThreshold: 200,
   longPressThreshold: 500,
   doubleClickInterval: 300,
@@ -89,10 +89,10 @@ function applySettings(data) {
     if (key in data) form[key] = data[key]
   })
   // 灵敏度字段：兼容旧字符串档位，归一化为数值
-  form.mouseSensitivity = toNumberSensitivity(data.mouseSensitivity, 1.0)
-  form.verticalScrollSensitivity = toNumberSensitivity(data.verticalScrollSensitivity, 1.0)
-  form.horizontalScrollSensitivity = toNumberSensitivity(data.horizontalScrollSensitivity, 1.0)
-  form.edgeMoveSpeed = toNumberSensitivity(data.edgeMoveSpeed, 8)
+  form.mouseSensitivity = toNumberSensitivity(data.mouseSensitivity, 3.0)
+  form.verticalScrollSensitivity = toNumberSensitivity(data.verticalScrollSensitivity, 2.0)
+  form.horizontalScrollSensitivity = toNumberSensitivity(data.horizontalScrollSensitivity, 2.0)
+  form.edgeMoveSpeed = toNumberSensitivity(data.edgeMoveSpeed, 12)
   // 端口回填到输入框：'auto' 显示空（占位提示"自动"）
   portInput.value = form.serverPort === 'auto' ? '' : String(form.serverPort)
   // 下个微任务后解除 syncing 标志，让后续用户改动能正常提交
@@ -184,7 +184,7 @@ onMounted(async () => {
                   v-model.number="form.mouseSensitivity"
                   type="range"
                   min="0.1"
-                  max="3"
+                  max="10"
                   step="0.1"
                   class="slider"
                 >
@@ -213,7 +213,7 @@ onMounted(async () => {
                   v-model.number="form.verticalScrollSensitivity"
                   type="range"
                   min="0.1"
-                  max="3"
+                  max="10"
                   step="0.1"
                   class="slider"
                 >
@@ -227,7 +227,7 @@ onMounted(async () => {
                   v-model.number="form.horizontalScrollSensitivity"
                   type="range"
                   min="0.1"
-                  max="3"
+                  max="10"
                   step="0.1"
                   class="slider"
                 >
@@ -241,7 +241,7 @@ onMounted(async () => {
                   v-model.number="form.edgeMoveSpeed"
                   type="range"
                   min="1"
-                  max="20"
+                  max="30"
                   step="1"
                   class="slider"
                 >

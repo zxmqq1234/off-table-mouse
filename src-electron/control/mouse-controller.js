@@ -47,18 +47,18 @@ function safeRun(p, context) {
 }
 
 /**
- * 计算鼠标移动的加速度倍率
- * 规则：开启加速度且 speed > 1.5 时，倍率随 speed 线性增长，上限 1.5
- *   speed=1.5 → 1.0；speed=2.0 → 1.2；speed=2.5 → 1.4；speed≥2.75 → 1.5
+ * 计算鼠标移动的加速度倍率（DPI 风格：更灵敏）
+ * 规则：开启加速度且 speed > 0.5 时，倍率随 speed 增长，上限 3.0
+ *   speed=0.5 → 1.0；speed=1.0 → 1.5；speed=2.0 → 2.5；speed≥2.5 → 3.0
  * @param {number} speed 滑动速度（来自 payload.speed）
  * @returns {number} 加速度倍率
  */
 function computeAccelFactor(speed) {
   if (!settings || !settings.mouseAcceleration) return 1.0
   const s = Number(speed)
-  if (!Number.isFinite(s) || s <= 1.5) return 1.0
-  // 1.0 + (speed-1.5)*0.4，封顶 1.5
-  return Math.min(1.5, 1.0 + (s - 1.5) * 0.4)
+  if (!Number.isFinite(s) || s <= 0.5) return 1.0
+  // 1.0 + (speed-0.5)*1.0，封顶 3.0（比旧版阈值更低、系数更大，更灵敏）
+  return Math.min(3.0, 1.0 + (s - 0.5) * 1.0)
 }
 
 /**
@@ -125,8 +125,8 @@ function startEdgeMove(direction, speed) {
   } else {
     step = Number(rawSpeed)
   }
-  if (!Number.isFinite(step) || step <= 0) step = 8
-  step = Math.min(20, Math.max(1, step))
+  if (!Number.isFinite(step) || step <= 0) step = 12
+  step = Math.min(30, Math.max(1, step))
   // speed 额外加权（payload.speed 影响持续移动快慢）
   const speedFactor = Number(speed) > 0 ? Math.min(2.0, Number(speed)) : 1.0
   step = step * speedFactor

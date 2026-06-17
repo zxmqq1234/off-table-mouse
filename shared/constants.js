@@ -16,13 +16,13 @@ module.exports = {
   HEARTBEAT_TIMEOUT: 45000,
 
   // 默认设置项（对应 PRD 7.5 节）
-  // 灵敏度统一为数值：鼠标/滚动为倍率（0.1~3.0，1.0=标准），边缘移动为每帧像素（1~20，8=标准）
+  // 灵敏度统一为数值：鼠标/滚动为倍率（0.1~10.0，类似 DPI 调节），边缘移动为每帧像素（1~30）
   DEFAULT_SETTINGS: {
-    mouseSensitivity: 1.0,
+    mouseSensitivity: 3.0,
     mouseAcceleration: true,
-    verticalScrollSensitivity: 1.0,
-    horizontalScrollSensitivity: 1.0,
-    edgeMoveSpeed: 8,
+    verticalScrollSensitivity: 2.0,
+    horizontalScrollSensitivity: 2.0,
+    edgeMoveSpeed: 12,
     clickThreshold: 200,
     longPressThreshold: 500,
     doubleClickInterval: 300,
