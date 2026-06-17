@@ -20,8 +20,8 @@ module.exports = {
   DEFAULT_SETTINGS: {
     mouseSensitivity: 3.0,
     mouseAcceleration: true,
-    verticalScrollSensitivity: 2.0,
-    horizontalScrollSensitivity: 2.0,
+    verticalScrollSensitivity: 5.0,
+    horizontalScrollSensitivity: 5.0,
     edgeMoveSpeed: 12,
     clickThreshold: 200,
     longPressThreshold: 500,

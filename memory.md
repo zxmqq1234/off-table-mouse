@@ -80,6 +80,16 @@
   - 全部 63 项任务代码完成
 - **里程碑：PRD 全部 63 项任务代码完成（P0 33 + P1 15 + 置灰 9 + 基础设施 6）**
 
+## 状态记录（追加）
+- **2026-06-18**：诊断+修复三个问题（分支 `修复/20260617-诊断滚动动效`，已合并 main）。
+  - **白屏**：主窗口 `backgroundColor: '#ffffff'`，dev 模式 `loadURL` 加 3 次重试（Vite 未就绪时避免白屏）
+  - **滚动灵敏度太低**：
+    - 根本原因：`nutjs-adapter.js` STEP=120 太大，前端 SCROLL_BASE=6 太小。10px*6*2/120=1 格
+    - 修复：STEP 120→40，SCROLL_BASE 6→10。新链路：10px*10*2/40=5 格
+    - 灵敏度浮动效果明显：2.0→5.0 从 5 格→12 格
+  - **动效不显示**：全链路加 `[diag]` 日志（main→triggerEffect→_sendEffect→overlay playEffect），下次复现可看控制台定位断点
+  - **清理**：`connection.js` 删不再使用的 `EventType`/`buildMessage` 导入（被动心跳后不主动发 ping），lint 零警告
+
 ## 待决策/待办
 1. **【最关键】Windows 端到端实跑验证**：控制层是 mock，需 Windows 装 `@nut-tree-fork/nut-js` + electron-rebuild，切 `control/index.js` ADAPTER_TYPE='nutjs' 后实测全流程
 2. **双指滑动手势方向**：实机手感确认后可能需对调（shortcut-controller.js / gestures.js 注释标明）

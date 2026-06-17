@@ -211,12 +211,12 @@ onMounted(async () => {
               <label class="row-label">竖向滚动灵敏度</label>
               <div class="slider-row">
                 <input
-                  v-model.number="form.verticalScrollSensitivity"
-                  type="range"
-                  min="0.1"
-                  max="10"
-                  step="0.1"
-                  class="slider"
+                v-model.number="form.verticalScrollSensitivity"
+                type="range"
+                min="0.5"
+                max="20"
+                step="0.5"
+                class="slider"
                 >
                 <span class="slider-value">{{ Number(form.verticalScrollSensitivity).toFixed(1) }}×</span>
               </div>
@@ -225,12 +225,12 @@ onMounted(async () => {
               <label class="row-label">横向滚动灵敏度</label>
               <div class="slider-row">
                 <input
-                  v-model.number="form.horizontalScrollSensitivity"
-                  type="range"
-                  min="0.1"
-                  max="10"
-                  step="0.1"
-                  class="slider"
+                v-model.number="form.horizontalScrollSensitivity"
+                type="range"
+                min="0.5"
+                max="20"
+                step="0.5"
+                class="slider"
                 >
                 <span class="slider-value">{{ Number(form.horizontalScrollSensitivity).toFixed(1) }}×</span>
               </div>

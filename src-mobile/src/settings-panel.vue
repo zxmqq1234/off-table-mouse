@@ -115,9 +115,9 @@ onMounted(() => {
               <input
                 v-model.number="form.verticalScrollSensitivity"
                 type="range"
-                min="0.1"
-                max="10"
-                step="0.1"
+                min="0.5"
+                max="20"
+                step="0.5"
                 class="sp-slider"
               >
               <span class="sp-slider-value">{{ Number(form.verticalScrollSensitivity).toFixed(1) }}×</span>
@@ -129,9 +129,9 @@ onMounted(() => {
               <input
                 v-model.number="form.horizontalScrollSensitivity"
                 type="range"
-                min="0.1"
-                max="10"
-                step="0.1"
+                min="0.5"
+                max="20"
+                step="0.5"
                 class="sp-slider"
               >
               <span class="sp-slider-value">{{ Number(form.horizontalScrollSensitivity).toFixed(1) }}×</span>
