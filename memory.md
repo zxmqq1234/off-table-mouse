@@ -63,26 +63,33 @@
 ## 状态记录
 - **2026-06-17**：飞书项目表建立完成，63 条任务含依赖关系全部就位。
 - **2026-06-17**：Git 仓库初始化 + 项目骨架（合并 main）。Electron+Vue3+Vite+协议定义。
-- **2026-06-17**：并行开发板块A（连接管理）+ 板块B（输入模拟），各自独立 worktree/分支，已完成推送。
-  - **板块A 连接管理**（分支 `功能/20260617-连接管理服务`，worktree `.worktrees/conn`）：network/token/qrcode/connection/http-server/ws-server/index 共7文件。冒烟测试通过。新增依赖 `ws@^8.21.0`。
-  - **板块B 输入模拟**（分支 `功能/20260617-输入模拟层`，worktree `.worktrees/input`）：adapter/mock-adapter/nutjs-adapter/keymap/mouse-controller/keyboard-controller/shortcut-controller/index 共8文件。mock 冒烟测试通过。适配器模式，当前 mock，Windows 切 nutjs。
-  - 两板块通过 `shared/protocol.js` 契约解耦：A 转发 `control` 事件 → B 的 `dispatchEvent(message)` 执行。
-- **飞书表**：基础设施6 + 板块A连接管理12 + 板块B输入模拟4 = 共22条已完成。
+- **2026-06-17**：并行开发板块A（连接管理）+ 板块B（输入模拟），各自独立 worktree/分支，已完成推送合并 main。
+  - **板块A 连接管理**：network/token/qrcode/connection/http-server/ws-server/index 共7文件。新增依赖 `ws@^8.21.0`。
+  - **板块B 输入模拟**：adapter/mock-adapter/nutjs-adapter/keymap/mouse-controller/keyboard-controller/shortcut-controller/index 共8文件。适配器模式，当前 mock，Windows 切 nutjs。
+- **2026-06-19**：并行开发板块C（主进程集成）+ 板块D（手机端基础），已完成推送合并 main。
+  - **板块C 主进程集成**（`功能/20260619-主进程集成`）：改 main/index.js（启动服务+IPC转发+退出清理）、preload.js（window.otm API）、src-desktop/App.vue（真实GUI：状态/二维码/确认弹窗/断开/错误）。IPC 通道 `otm:` 前缀。
+  - **板块D 手机端基础**（`功能/20260619-手机端基础`）：ws-client/gestures/control-events/connect-page/control-page/keyboard-panel/shortcut-panel/App.vue。PRD8.1布局+手势识别+实时键盘+快捷键。改了 vite.config.mobile.js（commonjsOptions 处理 shared CJS）。
+  - 合并后全量验证：eslint 零警告、双端 vite build 成功。
+- **飞书表**：已完成约 40 条（基础设施6 + 板块A连接12 + 板块B输入4 + 板块C集成3 + 板块D手机端15）。
 
 ## 待决策/待办
-1. **双指滑动手势方向**：PRD 9.5（"左→右滑=后退"）与板块B实现存在反向解读，实机手感确认后可能需对调两行映射（`shortcut-controller.js` 已注释标明）
+1. **双指滑动手势方向**：PRD 9.5（"左→右滑=后退"）与板块B/板块D实现存在反向解读，实机手感确认后可能需对调（`shortcut-controller.js` / `gestures.js` 已注释标明）
 2. **nut.js Windows 验证**：板块B 代码已写好，需在 Windows 装 `@nut-tree-fork/nut-js` + electron-rebuild 实测
-3. **两分支合并 main**：板块A、B 分支已推送，待老板授权是否合并
-4. **主进程集成**：`src-electron/main/index.js` 需在 `app.whenReady()` 调 `startServices()` 并订阅事件驱动 GUI（板块A/B 合并后做）
-5. **下一步板块**：手机端基础（连接页 #20 + 主控制布局 #21），依赖板块A WS协议
+3. **Windows 端到端实跑**：当前全链路代码完成（mock 控制层），需 Windows 上 `npm run dev` 实测扫码连接+控制全流程
+4. **设置模块（最后一个P0）**：#40 电脑端设置存储+UI、手机端设置入口接线。做完P0全部代码完成
+5. **P1 增强**：双击/双指点右键/复制地址/设备详情/快捷键扩展/自动重连(手机端已做)/日志/主题/端口/开机启动/托盘
+6. **置灰入口**：9 条仅 UI
 
 ## 关键路径与工具备忘
 - node v22.22.3 / npm 10.9.8
-- 桌面端 vite dev 端口 5173，手机端 5174
-- electron 主进程：`src-electron/main/index.js`，生产加载 `dist-desktop/index.html`
-- 手机端生产构建产物 `dist-mobile/`，由电脑端 HTTP 服务托管（板块A 已实现 http-server）
+- 桌面端 vite dev 端口 5173，手机端 5174，HTTP/WS 服务端口 8765
+- electron 主进程：`src-electron/main/index.js`（已集成服务），生产加载 `dist-desktop/index.html`
+- 手机端生产构建产物 `dist-mobile/`，由电脑端 HTTP 服务托管（http-server 已实现）
 - 板块A 入口：`require('./server').startServices(opts)`，事件 `on('status'|'connect_request'|'qrcode'|'control'|'disconnect'|'error')`
-- 板块B 入口：`require('./control').initController(settings)` + `dispatchEvent(message, settings)`
+- 板块B 入口：`require('./control').initController(settings)` + `dispatchEvent(message, settings)` + `disposeController()`
+- IPC 通道（主↔渲染）：`otm:status|qrcode|connect_request|disconnect|error`（主→渲染）；`otm:approve|reject|refresh-qrcode|disconnect|copy-url`（渲染→主）
+- 手机端 WS：连接路径 `/ws`，URL 携带 `?token=`，心跳 ping/pong，非主动断开自动重连3次
+- 设置项当前用 `constants.DEFAULT_SETTINGS` 占位，待设置模块实现持久化
 - lark-cli 文件参数必须用相对路径（当前目录内）
 
 ## 状态记录（追加）
@@ -93,4 +100,18 @@
   - 依赖：`ws@^8.21.0` 已写入 `dependencies`
   - 对接板块B（控制层）：`server/index.js` 通过 EventEmitter `'control'` 事件转发 message（结构 = protocol.js 通用字段 `{type,token,clientId,timestamp,payload}`，type 见 EventType 枚举）。板块B订阅 `services.on('control', message => ...)` 消费即可
   - 集成点（合并阶段再做）：`src-electron/main/index.js` 在 `app.whenReady()` 后调 `require('./server').startServices()`，订阅 `on('qrcode'/'status'/'connect_request'/'disconnect'/'error')` 驱动 GUI；用户确认按钮调 `approveConnect()/rejectConnect()`
+- **2026-06-19**：板块D《手机网页端基础》完成（分支 `功能/20260619-手机端基础`，worktree `.worktrees/mobile`，已推送 origin）。
+  - 新增文件（`src-mobile/src/`）：
+    - `ws-client.js`：WS 客户端封装（connect_request 携 token / approved·rejected·force_disconnect 回执 / ping-pong 心跳+45s超时 / 非主动断开自动重连2s×3 / close 发 disconnect）
+    - `gestures.js`：手势识别（纯逻辑）。单指点击/双击/移动/长按/长按拖拽；双指点击(右键)/水平滑动；三指水平滑动/垂直上滑。多指用 identifier Map 追踪，质心判向
+    - `control-events.js`：手势→协议消息工厂（buildMessage）
+    - `connect-page.vue`：解析 `?token=`→构造 `ws(s)://host/ws`→建连→状态展示(spinner)→拒绝/失败重试；无 token 提示无效
+    - `control-page.vue`：PRD8.1 布局。触控区接 recognizer；move 60fps 节流；左键按钮短按click/长按down进入拖拽方式二；边缘持续移动(距边8px停留300ms)；竖向/横向滚动区；底部工具栏
+    - `keyboard-panel.vue`：实时输入。input diff 同步新增/删除；compositionstart/end 守卫中文中间态不上屏；Enter→keyboard_key
+    - `shortcut-panel.vue`：快捷键网格 P0(复制/粘贴/回车/退出/删除/桌面)+P1(剪切/撤销/全选/Delete/Tab/任务切换)
+  - 改造：`App.vue`（connect/control 视图组装，props 传 wsClient）、`style.css`（100dvh/dvw 移动适配）
+  - 配套配置：`vite.config.mobile.js` 增 `build.commonjsOptions.include=[/[/\\]shared[/\\]/, /node_modules/]`。原因：生产构建 rollup 默认不处理项目内别名指向的 CJS 源（shared/*.js 与 Electron 共用保持 CJS），命名导入会报 not exported。
+  - 验证：`npm run build:mobile` 通过（26 模块，78.9KB/gzip30.9KB）；`npx eslint src-mobile/src` 零警告
+  - 对接协议点（与板块A ws-server 一致）：WS 路径 `/ws`（ws-server 未限 path）；token 注入通用字段 `message.token`（ws-server extractToken 优先取之）；控制事件必须 connect_approved 后发（未鉴权被 ws-server 忽略）
+  - 遗留风险：①无法真机联调，手势手感/边缘阈值/节流需实机微调；②双指滑动方向（PRD9.5 "左→右=后退" vs 板块B 反向解读）仍待实机确认，本端语义=从左→右滑发 `two_finger_swipe_right`；③拖拽方式一(长按)/方式二(按住左键)未互斥，极端同时操作可能重复 down（实际二选一不冲突）；④设置项用 DEFAULT_SETTINGS 占位，板块E 接入响应式同步
 
