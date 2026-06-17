@@ -86,3 +86,10 @@ export function edgeMoveStartMessage(direction, speed = 1.0) {
 export function edgeMoveStopMessage() {
   return buildMessage(EventType.EDGE_MOVE_STOP, {})
 }
+
+/**
+ * 鼠标动效反馈（单指触碰屏幕时触发，电脑端在鼠标位置显示涟漪）
+ */
+export function cursorEffectMessage() {
+  return buildMessage(EventType.CURSOR_EFFECT, {})
+}
