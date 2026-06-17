@@ -29,6 +29,8 @@ const server = require('../server')
 const control = require('../control')
 const settingsStore = require('../core/settings')
 const logger = require('../core/logger')
+const overlay = require('./overlay-window')
+const { GestureType } = require('../../shared/protocol')
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -209,6 +211,18 @@ function createTray() {
 }
 
 /**
+ * 创建动效 overlay 窗口（异常保护，失败不阻断主功能）
+ */
+function createOverlayWrapper() {
+  try {
+    overlay.createOverlay()
+    logger.log('info', '动效 overlay 窗口已创建')
+  } catch (err) {
+    logger.log('warn', '创建 overlay 窗口失败（不影响主功能）：' + (err && err.message ? err.message : err))
+  }
+}
+
+/**
  * 根据当前 settings.serverPort 构造 startServices 的端口选项（任务4，PRD 7.5 P1 #52）
  * - 'auto'：用默认端口（传 undefined 让服务层用 DEFAULT_PORT=8765，占用自动递增）
  * - 数字：用指定端口（占用时 http-server 仍会自动递增重试，属容错行为）
@@ -292,6 +306,24 @@ function bindServerEvents() {
   })
   // 控制事件 → 转发控制层执行（不发给渲染进程）
   server.on('control', message => {
+    // 动效事件：纯 UI 反馈，不进控制层，直接触发 overlay 动效
+    if (message && message.type === 'cursor_effect') {
+      triggerEffectFromMessage(message)
+      return
+    }
+    // 设置同步：手机端下发设置变更，应用并落盘（不进控制层）
+    if (message && message.type === 'setting_update') {
+      try {
+        settingsStore.updateSettings((message.payload && message.payload.settings) || {})
+      } catch (err) {
+        logger.log('warn', '应用手机端设置同步失败：' + (err && err.message ? err.message : err))
+      }
+      return
+    }
+    // 手势事件：既执行快捷键，又在 overlay 显示手势文字动效
+    if (message && message.type === 'gesture') {
+      triggerEffectFromMessage(message)
+    }
     try {
       control.dispatchEvent(message, settings)
     } catch (err) {
@@ -299,6 +331,45 @@ function bindServerEvents() {
       logger.log('error', '控制事件执行失败：' + (err && err.message ? err.message : err))
     }
   })
+}
+
+/**
+ * 根据消息类型触发动效（在当前鼠标位置显示）
+ * - cursor_effect：单指触碰涟漪
+ * - gesture：手势文字气泡（根据手势类型映射提示文字）
+ * @param {{type:string, payload?:object}} message
+ */
+function triggerEffectFromMessage(message) {
+  const payload = (message && message.payload) || {}
+  if (message.type === 'cursor_effect') {
+    // 单指触碰 → 涟漪
+    overlay.triggerEffect('touch')
+  } else if (message.type === 'gesture' && payload.gesture) {
+    // 手势 → 文字气泡（映射手势到可读文字）
+    const text = gestureText(payload.gesture)
+    if (text) overlay.triggerEffect('gesture', text)
+  }
+}
+
+/**
+ * 手势类型 → 可读提示文字（用于动效气泡显示）
+ * @param {string} gesture GestureType 枚举值
+ * @returns {string|null}
+ */
+function gestureText(gesture) {
+  switch (gesture) {
+    case GestureType.TWO_FINGER_SWIPE_LEFT:
+      return '前进 →'
+    case GestureType.TWO_FINGER_SWIPE_RIGHT:
+      return '← 返回'
+    case GestureType.THREE_FINGER_SWIPE_LEFT:
+    case GestureType.THREE_FINGER_SWIPE_RIGHT:
+      return '任务切换'
+    case GestureType.THREE_FINGER_SWIPE_UP:
+      return '回桌面'
+    default:
+      return null
+  }
 }
 
 /**
@@ -430,6 +501,9 @@ async function startApp() {
   // 1.1 创建系统托盘（任务6，PRD P1 #54；失败不阻断主功能）
   createTray()
 
+  // 1.2 创建动效 overlay 窗口（透明置顶穿透，显示鼠标位置涟漪/手势气泡）
+  createOverlayWrapper()
+
   // 2. 初始化控制层（鼠标/键盘/快捷键适配器），传入加载到的设置
   control.initController(settings)
 
@@ -489,6 +563,8 @@ app.on('before-quit', async event => {
   // 阻止立即退出，等异步清理完成后再 exit
   event.preventDefault()
   servicesRunning = false
+  // 销毁动效 overlay 窗口
+  overlay.destroyOverlay()
   try {
     await server.stopServices()
     logger.log('info', '服务已停止')

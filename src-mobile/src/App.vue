@@ -11,11 +11,14 @@
 import { ref } from 'vue'
 import ConnectPage from './connect-page.vue'
 import ControlPage from './control-page.vue'
+import SettingsPanel from './settings-panel.vue'
 
 // 当前视图：connect（连接页）| control（主控制页）
 const view = ref('connect')
 // ws-client 实例（连接成功后由连接页产出，传给控制页）
 const wsClient = ref(null)
+// 手机端设置面板显示状态
+const showSettings = ref(false)
 
 /** 连接页产出 client 且已获批准 → 进入控制页 */
 function onConnected(client) {
@@ -29,10 +32,9 @@ function onDisconnect() {
   view.value = 'connect'
 }
 
-/** 设置入口（占位，后续设置板块实现） */
+/** 设置入口：打开手机端设置面板 */
 function onSettings() {
-  // TODO: 板块E 接入设置面板
-  console.log('[App] 打开设置（占位）')
+  showSettings.value = true
 }
 </script>
 
@@ -47,6 +49,12 @@ function onSettings() {
       :ws-client="wsClient"
       @disconnect="onDisconnect"
       @settings="onSettings"
+    />
+    <!-- 手机端设置面板（覆盖层） -->
+    <SettingsPanel
+      v-if="showSettings"
+      :ws-client="wsClient"
+      @close="showSettings = false"
     />
   </div>
 </template>

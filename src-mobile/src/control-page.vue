@@ -32,7 +32,8 @@ import {
   scrollMessage,
   gestureMessage,
   edgeMoveStartMessage,
-  edgeMoveStopMessage
+  edgeMoveStopMessage,
+  cursorEffectMessage
 } from './control-events.js'
 import KeyboardPanel from './keyboard-panel.vue'
 import ShortcutPanel from './shortcut-panel.vue'
@@ -140,6 +141,10 @@ function toPoints(touchList) {
 function onPadStart(e) {
   e.preventDefault()
   recognizer.onTouchStart(toPoints(e.changedTouches))
+  // 单指触碰屏幕 → 触发电脑端鼠标位置涟漪动效（仅单指，避免双指/三指也触发）
+  if (e.touches.length === 1) {
+    props.wsClient.send(cursorEffectMessage())
+  }
   // 手指按下时也检测边缘停留（某些浏览器手指静止后 touchmove 会降频/停止，
   // 仅靠 onPadMove 检测可能导致边缘持续移动不触发；按下即开始计时可兜底）
   if (e.touches.length === 1 && padRef.value) {

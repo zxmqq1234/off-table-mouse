@@ -43,7 +43,13 @@ const EventType = {
 
   // 心跳
   PING: 'ping',
-  PONG: 'pong'
+  PONG: 'pong',
+
+  // 鼠标动效反馈（手机端触碰屏幕时触发，电脑端在鼠标位置显示涟漪/气泡）
+  CURSOR_EFFECT: 'cursor_effect',
+
+  // 设置同步（手机端设置变更下发给电脑端，电脑端应用并落盘）
+  SETTING_UPDATE: 'setting_update'
 }
 
 // 电脑端 -> 手机端 的事件
