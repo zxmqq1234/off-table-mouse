@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>overlay</title>
   <style>
-    /* overlay 动效层：透明背景，覆盖全屏，不拦截鼠标（窗口层已 setIgnoreMouseEvents） */
     html, body {
       margin: 0;
       padding: 0;
@@ -19,48 +18,50 @@
       font-family: -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
     }
 
-    /* ===== 单指触碰涟漪 ===== */
+    /* ===== 单指触碰涟漪（蓝色） ===== */
     @keyframes ripple-out {
-      0% {
-        transform: translate(-50%, -50%) scale(0.3);
-        opacity: 0.9;
-        border-width: 4px;
-      }
-      100% {
-        transform: translate(-50%, -50%) scale(3.5);
-        opacity: 0;
-        border-width: 1px;
-      }
+      0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0.9; border-width: 4px; }
+      100% { transform: translate(-50%, -50%) scale(3.5); opacity: 0; border-width: 1px; }
     }
     .fx-ripple {
       position: absolute;
-      width: 36px;
-      height: 36px;
+      width: 36px; height: 36px;
       border-radius: 50%;
       border: 4px solid #3b82f6;
       box-shadow: 0 0 16px rgba(59, 130, 246, 0.5);
       animation: ripple-out 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
     }
-    /* 涟漪中心点（脉冲圆点） */
     @keyframes dot-pulse {
       0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
       100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
     }
     .fx-dot {
       position: absolute;
-      width: 10px;
-      height: 10px;
+      width: 10px; height: 10px;
       border-radius: 50%;
       background: #3b82f6;
       animation: dot-pulse 0.6s ease-out forwards;
     }
 
-    /* ===== 手势气泡（文字+光环） ===== */
+    /* ===== 手势气泡（多指操作，琥珀色/橙色区分） ===== */
     @keyframes gesture-pop {
-      0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
-      15% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+      0% { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+      15% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
       75% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
       100% { transform: translate(-50%, -50%) scale(0.95); opacity: 0; }
+    }
+    /* 前进/返回：带方向感的滑入 */
+    @keyframes gesture-slide-left {
+      0% { transform: translate(calc(-50% + 20px), -50%) scale(0.4); opacity: 0; }
+      15% { transform: translate(calc(-50% - 4px), -50%) scale(1.1); opacity: 1; }
+      75% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+      100% { transform: translate(calc(-50% + 2px), -50%) scale(0.95); opacity: 0; }
+    }
+    @keyframes gesture-slide-right {
+      0% { transform: translate(calc(-50% - 20px), -50%) scale(0.4); opacity: 0; }
+      15% { transform: translate(calc(-50% + 4px), -50%) scale(1.1); opacity: 1; }
+      75% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+      100% { transform: translate(calc(-50% - 2px), -50%) scale(0.95); opacity: 0; }
     }
     @keyframes ring-expand {
       0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.8; }
@@ -68,134 +69,116 @@
     }
     .fx-bubble {
       position: absolute;
-      padding: 10px 20px;
-      background: rgba(59, 130, 246, 0.92);
+      padding: 14px 28px;
       color: #fff;
-      border-radius: 24px;
-      font-size: 16px;
-      font-weight: 600;
+      border-radius: 30px;
+      font-size: 24px;
+      font-weight: 700;
       white-space: nowrap;
-      box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
       animation: gesture-pop 1.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
+      letter-spacing: 1px;
     }
-    /* 手势光环（气泡背后的扩散圈） */
     .fx-ring {
       position: absolute;
-      width: 60px;
-      height: 60px;
+      width: 64px; height: 64px;
       border-radius: 50%;
-      border: 3px solid rgba(59, 130, 246, 0.6);
+      border: 3px solid;
       animation: ring-expand 1.4s ease-out forwards;
     }
-
-    /* ===== 诊断指示标 ===== */
-    .fx-indicator {
-      position: fixed;
-      top: 8px;
-      right: 8px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: rgba(255,255,255,0.6);
-      background: rgba(0,0,0,0.3);
-      padding: 4px 10px;
-      border-radius: 12px;
-      pointer-events: none;
-      z-index: 9999;
-    }
-    .fx-indicator .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #22c55e;
-      animation: dot-blink 1.5s ease-in-out infinite;
-    }
-    @keyframes dot-blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
+    /* 气泡内方向箭头 */
+    .fx-bubble .arrow {
+      font-size: 28px;
+      line-height: 1;
     }
   </style>
 </head>
 
 <body>
-  <!-- 诊断指示标：overlay 窗口活跃时可见，绿点闪烁表示正在运行 -->
-  <div class="fx-indicator"><span class="dot"></span>OVERLAY ACTIVE</div>
+  <div class="fx-indicator" style="position:fixed;top:8px;left:8px;display:flex;align-items:center;gap:6px;font-size:12px;color:rgba(255,255,255,0.5);background:rgba(0,0,0,0.2);padding:4px 10px;border-radius:12px;pointer-events:none;z-index:9999;">
+    <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;animation:1.5s ease-in-out infinite alternate;opacity:1;">&nbsp;</span>OVERLAY
+  </div>
 
-  <!-- 动效元素动态插入 body，动画结束自动移除 -->
   <script>
+    const ANIM_DURATION = { touch: 600, gesture: 1400 }
+
     /**
-     * overlay 动效渲染脚本
-     * 通过 preload 暴露的 window.__overlayEffect__ 接收主进程 IPC 消息：
-     *   { x, y, effect, text }
-     * effect: 'touch'（涟漪）| 'gesture'（文字气泡+光环）
+     * 根据手势文字确定主题色和动画
+     * 前进/返回 → 橙色(#f97316)，滑入动效
+     * 其他手势 → 琥珀色(#f59e0b)，普通弹出动效
      */
-    const ANIM_DURATION = {
-      touch: 600,
-      gesture: 1400
+    function gestureTheme(text) {
+      if (!text) return { color: '#f59e0b', ringColor: 'rgba(245,158,11,0.6)', anim: 'gesture-pop' }
+      if (text.includes('前进')) {
+        return { color: '#f97316', ringColor: 'rgba(249,115,22,0.6)', anim: 'gesture-slide-right', arrow: '→' }
+      }
+      if (text.includes('返回')) {
+        return { color: '#f97316', ringColor: 'rgba(249,115,22,0.6)', anim: 'gesture-slide-left', arrow: '←' }
+      }
+      return { color: '#f59e0b', ringColor: 'rgba(245,158,11,0.6)', anim: 'gesture-pop', arrow: '' }
     }
 
-    /**
-     * 在指定坐标创建并播放射效
-     * @param {{x:number, y:number, effect:string, text?:string}} data
-     */
     window.playEffect = function (data) {
       const { x, y, effect, text } = data || {}
-      console.log('[overlay-diag] playEffect 收到:', JSON.stringify(data))
-      if (typeof x !== 'number' || typeof y !== 'number') {
-        console.log('[overlay-diag] 坐标无效，跳过')
+      console.log('[overlay-diag] playEffect:', JSON.stringify(data))
+      if (typeof x !== 'number' || typeof y !== 'number') return
+
+      if (effect === 'touch') {
+        const ripple = document.createElement('div')
+        ripple.className = 'fx-ripple'
+        ripple.style.cssText += ';left:' + x + 'px;top:' + y + 'px'
+        document.body.appendChild(ripple)
+        const dot = document.createElement('div')
+        dot.className = 'fx-dot'
+        dot.style.cssText += ';left:' + x + 'px;top:' + y + 'px'
+        document.body.appendChild(dot)
+        setTimeout(function () { ripple.remove(); dot.remove() }, ANIM_DURATION.touch + 50)
         return
       }
 
-      if (effect === 'touch') {
-        // 涟漪 + 中心点
-        const ripple = document.createElement('div')
-        ripple.className = 'fx-ripple'
-        ripple.style.left = x + 'px'
-        ripple.style.top = y + 'px'
-        document.body.appendChild(ripple)
+      // —— 手势 ——
+      var theme = gestureTheme(text)
+      var dur = ANIM_DURATION.gesture
 
-        const dot = document.createElement('div')
-        dot.className = 'fx-dot'
-        dot.style.left = x + 'px'
-        dot.style.top = y + 'px'
-        document.body.appendChild(dot)
+      var ring = document.createElement('div')
+      ring.className = 'fx-ring'
+      ring.style.borderColor = theme.ringColor
+      ring.style.left = x + 'px'
+      ring.style.top = y + 'px'
+      document.body.appendChild(ring)
 
-        const dur = ANIM_DURATION.touch
-        setTimeout(() => { ripple.remove(); dot.remove() }, dur + 50)
-      } else {
-        // 手势：光环 + 文字气泡
-        const ring = document.createElement('div')
-        ring.className = 'fx-ring'
-        ring.style.left = x + 'px'
-        ring.style.top = y + 'px'
-        document.body.appendChild(ring)
+      var bubble = document.createElement('div')
+      bubble.className = 'fx-bubble'
+      bubble.style.background = theme.color
+      bubble.style.animationName = theme.anim
+      bubble.style.boxShadow = '0 4px 24px ' + (theme.color === '#f97316' ? 'rgba(249,115,22,0.45)' : 'rgba(245,158,11,0.4)')
 
-        const bubble = document.createElement('div')
-        bubble.className = 'fx-bubble'
-        bubble.textContent = text || ''
-        // 气泡显示在鼠标上方一点（向上偏移 48px），避免遮挡
-        bubble.style.left = x + 'px'
-        bubble.style.top = (y - 48) + 'px'
-        document.body.appendChild(bubble)
-
-        const dur = ANIM_DURATION.gesture
-        setTimeout(() => { ring.remove(); bubble.remove() }, dur + 50)
+      if (theme.arrow) {
+        var arrowSpan = document.createElement('span')
+        arrowSpan.className = 'arrow'
+        arrowSpan.textContent = theme.arrow
+        bubble.appendChild(arrowSpan)
       }
+      var textSpan = document.createElement('span')
+      textSpan.textContent = text || ''
+      bubble.appendChild(textSpan)
+
+      bubble.style.left = x + 'px'
+      bubble.style.top = (y - 56) + 'px'
+      document.body.appendChild(bubble)
+
+      setTimeout(function () { ring.remove(); bubble.remove() }, dur + 50)
     }
 
-    // 页面自检：2 秒后自动在窗口中央触发一次涟漪，确认渲染引擎正常
+    // 页面自检
     setTimeout(function () {
-      const cx = window.innerWidth / 2
-      const cy = window.innerHeight / 2
-      console.log('[overlay-diag] 页面自检: 触发中间涟漪', { cx, cy })
+      var cx = window.innerWidth / 2
+      var cy = window.innerHeight / 2
       window.playEffect({ x: cx, y: cy, effect: 'touch' })
-      // 再 0.8 秒后触发手势气泡
       setTimeout(function () {
-        window.playEffect({ x: cx, y: cy - 80, effect: 'gesture', text: 'OVERLAY ✓' })
+        window.playEffect({ x: cx, y: cy - 80, effect: 'gesture', text: '← 返回' })
       }, 800)
     }, 2000)
   </script>

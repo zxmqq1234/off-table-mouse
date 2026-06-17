@@ -90,7 +90,8 @@
   - **动效不显示**：全链路加 `[diag]` 日志（main→triggerEffect→_sendEffect→overlay playEffect），下次复现可看控制台定位断点
   - **清理**：`connection.js` 删不再使用的 `EventType`/`buildMessage` 导入（被动心跳后不主动发 ping），lint 零警告
 - **2026-06-18**：动效修复 + 滚动调参（直接在 main 上提交，未设分支/worktree，因为改动直接推到 main 更轻量）。
-  - **动效不显示根因**：`contextIsolation=true` 下 preload 的 `window.__overlayEffect__` 与页面 `window` 隔离，页面拿不到该函数 → 改为 `contextBridge.exposeInMainWorld('overlayEffect', { onEffect })`。配合 overlay.html 调用 `window.overlayEffect.onEffect(playEffect)`
+  - **动效不显示根因**（第一轮）：`contextIsolation=true` 下 preload 的 `window.__overlayEffect__` 与页面 `window` 隔离，页面拿不到该函数 → 改为 `contextBridge.exposeInMainWorld('overlayEffect', { onEffect })`
+  - **动效不显示根因**（第二轮，彻底修复）：`contextBridge` + `webContents.send` + `ipcRenderer.on` 链路仍然存在接收不可靠问题（偶发回调不触发）。彻底放弃 IPC 方案，改用 `overlayWindow.webContents.executeJavaScript('window.playEffect(...)')` 直调，绕过所有中间层。preload 仅保留就绪通知。overlay.html 的 `playEffect` 改为 `window.playEffect` 全局函数，2s 后自动触发自检（窗口中央涟漪+气泡，不依赖鼠标光标）。`overlayReady` 改为 `did-finish-load` + 500ms 后标记。
   - **滚动灵敏度**：默认值 2.0→5.0，滑块范围 max 10→20、step 0.5、min 0.5。配合之前的 STEP=40 SCROLL_BASE=10，手感大幅提升
 
 ## 待决策/待办
