@@ -90,10 +90,41 @@
       border: 3px solid rgba(59, 130, 246, 0.6);
       animation: ring-expand 1.4s ease-out forwards;
     }
+
+    /* ===== 诊断指示标 ===== */
+    .fx-indicator {
+      position: fixed;
+      top: 8px;
+      right: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.6);
+      background: rgba(0,0,0,0.3);
+      padding: 4px 10px;
+      border-radius: 12px;
+      pointer-events: none;
+      z-index: 9999;
+    }
+    .fx-indicator .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: dot-blink 1.5s ease-in-out infinite;
+    }
+    @keyframes dot-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
   </style>
 </head>
 
 <body>
+  <!-- 诊断指示标：overlay 窗口活跃时可见，绿点闪烁表示正在运行 -->
+  <div class="fx-indicator"><span class="dot"></span>OVERLAY ACTIVE</div>
+
   <!-- 动效元素动态插入 body，动画结束自动移除 -->
   <script>
     /**

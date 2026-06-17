@@ -108,6 +108,12 @@ function createOverlay() {
     console.log('[overlay] 页面已加载')
   })
 
+  // 把 overlay 页面的 console.log 实时转发到主进程终端（便于诊断）
+  overlayWindow.webContents.on('console-message', (_event, level, message, _line, _sourceId) => {
+    const tag = level === 2 ? 'warn' : level === 3 ? 'error' : 'info'
+    console.log(`[overlay:${tag}] ${message}`)
+  })
+
   // 兜底：1.5 秒后强制标记就绪并 show（防止 ready-to-show 不触发导致窗口永远不显示）
   setTimeout(() => {
     if (overlayWindow && !overlayWindow.isDestroyed() && !overlayWindow.isVisible()) {
@@ -115,6 +121,9 @@ function createOverlay() {
       console.log('[overlay] 兜底强制 show')
     }
   }, 1500)
+
+  // 浏览器自动测试定位：页面就绪后 3 秒自动触发一次涟漪，确认全链路通
+  let autoTestDone = false
 
   // 监听 overlay 页面就绪信号
   ipcMain.once('otm:overlay-ready', () => {
@@ -124,6 +133,14 @@ function createOverlay() {
     while (pendingEffects.length > 0) {
       const { effect, text } = pendingEffects.shift()
       _sendEffect(effect, text)
+    }
+    // 自动测试：3 秒后触发一次涟漪，验证全链路
+    if (!autoTestDone) {
+      autoTestDone = true
+      setTimeout(() => {
+        console.log('[overlay] 自动测试: 发送触摸涟漪')
+        _sendEffect('touch')
+      }, 3000)
     }
   })
 

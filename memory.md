@@ -89,6 +89,9 @@
     - 灵敏度浮动效果明显：2.0→5.0 从 5 格→12 格
   - **动效不显示**：全链路加 `[diag]` 日志（main→triggerEffect→_sendEffect→overlay playEffect），下次复现可看控制台定位断点
   - **清理**：`connection.js` 删不再使用的 `EventType`/`buildMessage` 导入（被动心跳后不主动发 ping），lint 零警告
+- **2026-06-18**：动效修复 + 滚动调参（直接在 main 上提交，未设分支/worktree，因为改动直接推到 main 更轻量）。
+  - **动效不显示根因**：`contextIsolation=true` 下 preload 的 `window.__overlayEffect__` 与页面 `window` 隔离，页面拿不到该函数 → 改为 `contextBridge.exposeInMainWorld('overlayEffect', { onEffect })`。配合 overlay.html 调用 `window.overlayEffect.onEffect(playEffect)`
+  - **滚动灵敏度**：默认值 2.0→5.0，滑块范围 max 10→20、step 0.5、min 0.5。配合之前的 STEP=40 SCROLL_BASE=10，手感大幅提升
 
 ## 待决策/待办
 1. **【最关键】Windows 端到端实跑验证**：控制层是 mock，需 Windows 装 `@nut-tree-fork/nut-js` + electron-rebuild，切 `control/index.js` ADAPTER_TYPE='nutjs' 后实测全流程
