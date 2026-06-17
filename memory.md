@@ -60,4 +60,18 @@
 7. 置灰入口（仅 UI）
 
 ## 状态记录
-- **2026-06-17**：飞书项目表建立完成，63 条任务含依赖关系全部就位。开发尚未开始。
+- **2026-06-17**：飞书项目表建立完成，63 条任务含依赖关系全部就位。
+- **2026-06-17**：Git 仓库初始化（main 推送），关联 Gitee（SSH）。远程：`git@gitee.com:ye_zhongji/off-table-mouse.git`
+- **2026-06-17**：项目骨架完成（分支 `功能/20260617-项目骨架`，已推送）。Electron+Vue3+Vite+协议定义。npm install / 双向 vite build / lint 均通过。Electron GUI 启动需在 Windows 验证（本机 Linux 无桌面库）。
+  - 已完成：Git初始化、目录脚手架、package.json依赖、构建脚本、lint配置（飞书 #1/2/3/5/6）
+  - 待做：nut.js 集成与 Windows 输入模拟验证（#4，需 Windows 环境）
+  - 待做：电脑端服务层（HTTP/WS/二维码/Token/连接管理）
+
+## 关键路径与工具备忘
+- npm install 已跑通（547 包），node v22.22.3
+- 桌面端 vite dev 端口 5173，手机端 5174
+- electron 主进程：`src-electron/main/index.js`，生产加载 `dist-desktop/index.html`
+- 手机端生产构建产物 `dist-mobile/`，由电脑端 HTTP 服务托管（待实现）
+- nut.js 待集成：注意 v4 需 license，应用免费版 v3.1.x；Windows 原生模块需 electron-rebuild
+- lark-cli 文件参数必须用相对路径（当前目录内）
+
