@@ -54,9 +54,9 @@ function createNutjsAdapter() {
   }
 
   // 取出 nut.js 核心对象（解构前先判空，避免在降级路径上引用 undefined）
-  const { mouse, keyboard, Button, Key } = nut
+  const { mouse, keyboard, Button, Key, clipboard } = nut
 
-  let sensitivity = 'medium'
+  let sensitivity = 1.0
 
   /**
    * 把协议按键名 'left'/'right'/'middle' 映射为 nut.js Button 枚举
@@ -77,15 +77,14 @@ function createNutjsAdapter() {
 
   /**
    * 鼠标相对移动。
-   * 实现：先取当前坐标，再加上 dx/dy（已含加速度）× 灵敏度倍率，set 到目标点。
+   * 实现：先取当前坐标，再加上 dx/dy（已含加速度）× 灵敏度倍率（sensitivity 为数值），set 到目标点。
    * 注：getPosition+setPosition 每帧有少量开销，高频移动性能需在 Windows 实测，
    *     若有瓶颈可改为缓存上次坐标或使用更底层的 robotjs-style delta API。
    * 【需 Windows 验证：性能、灵敏度手感】
    */
   async function moveMouse(dx, dy) {
-    const m = (require('./adapter').SENSITIVITY_MULTIPLIER)[sensitivity] ?? 1.0
     const pos = await mouse.getPosition()
-    const target = new nut.Point(pos.x + Number(dx) * m, pos.y + Number(dy) * m)
+    const target = new nut.Point(pos.x + Number(dx) * sensitivity, pos.y + Number(dy) * sensitivity)
     await mouse.setPosition(target)
   }
 
@@ -104,12 +103,12 @@ function createNutjsAdapter() {
 
   /** 鼠标按下（拖拽起始） */
   async function pressMouseDown(button) {
-    await mouse.press(mapButton(button))
+    await mouse.pressButton(mapButton(button))
   }
 
   /** 鼠标松开（拖拽结束） */
   async function pressMouseUp(button) {
-    await mouse.release(mapButton(button))
+    await mouse.releaseButton(mapButton(button))
   }
 
   /**
@@ -136,16 +135,34 @@ function createNutjsAdapter() {
   }
 
   /**
-   * 输入文本（逐字符）。
-   * nut.js keyboard.type 已支持多字符；中文依赖系统 IME，建议手机端用 compositionend 上屏后整体同步。
-   * 【需 Windows 验证：中文/Emoji 输入】
+   * 输入文本。
+   * - 纯 ASCII（英文/数字/符号）：keyboard.type 逐字符模拟，精确可靠。
+   * - 非 ASCII（中文/emoji 等）：nut.js 模拟按键无法输入 IME 字符，
+   *   改用剪贴板写入 + Ctrl+V 粘贴，保证内容正确。
+   * 【需 Windows 验证：中文粘贴时序、剪贴板污染】
    */
   async function typeText(text) {
-    await keyboard.type(String(text ?? ''))
+    const str = String(text ?? '')
+    if (!str) return
+    // 检测是否纯 ASCII（用 charCodeAt 避免控制字符正则）
+    let ascii = true
+    for (let i = 0; i < str.length; i++) {
+      if (str.charCodeAt(i) > 127) { ascii = false; break }
+    }
+    if (ascii) {
+      // 纯 ASCII：逐字符模拟按键
+      await keyboard.type(str)
+      return
+    }
+    // 非 ASCII：剪贴板 + Ctrl+V 粘贴（覆盖系统剪贴板，可接受）
+    await clipboard.setContent(str)
+    await keyboard.pressKey(Key.LeftControl, Key.V)
+    await keyboard.releaseKey(Key.V, Key.LeftControl)
   }
 
   /**
    * 敲击单键（功能键，如 Enter/Esc/Backspace/Delete/Tab）。
+   * nut.js 没有 press，用 pressKey + releaseKey 模拟一次敲击。
    * 【需 Windows 验证：枚举成员名是否正确】
    */
   async function tapKey(keyName) {
@@ -159,12 +176,14 @@ function createNutjsAdapter() {
       console.warn(`[nutjs-adapter] Key 枚举中无成员 "${memberName}"（按键 "${keyName}"），已忽略`)
       return
     }
-    await keyboard.press(keyEnum)
+    await keyboard.pressKey(keyEnum)
+    await keyboard.releaseKey(keyEnum)
   }
 
   /**
    * 组合键（如 ['Ctrl','C']）。
-   * nut.js keyboard.press 支持多键同时按下。
+   * nut.js 没有 press/hotKey，用 pressKey 按顺序按下、releaseKey 反序释放，
+   * 模拟标准组合键（修饰键先按住，普通键后点，松开反序）。
    * 【需 Windows 验证：Alt+Tab 任务切换器的特殊性（见 shortcut-controller 注释）】
    */
   async function pressShortcut(keys) {
@@ -183,7 +202,14 @@ function createNutjsAdapter() {
       keyEnums.push(k)
     }
     if (keyEnums.length === 0) return
-    await keyboard.press(...keyEnums)
+    // 按顺序按下所有键
+    for (const k of keyEnums) {
+      await keyboard.pressKey(k)
+    }
+    // 反序释放所有键
+    for (let i = keyEnums.length - 1; i >= 0; i--) {
+      await keyboard.releaseKey(keyEnums[i])
+    }
   }
 
   /** 设置鼠标灵敏度 */

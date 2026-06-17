@@ -21,20 +21,11 @@
 
 const { EventType, EdgeDirection } = require('../../shared/protocol')
 
-// 滚动灵敏度档位 → 倍率（controller 应用，控制滚动量级手感）
-const SCROLL_SENSITIVITY_MULTIPLIER = {
-  low: 0.6,
-  medium: 1.0,
-  high: 1.6
-}
+// 旧灵敏度档位 → 倍率（向后兼容已保存的旧 settings.json）
+const LEGACY_SENSITIVITY = { low: 0.6, medium: 1.0, high: 1.6 }
 
-// 边缘持续移动：档位 → 单帧位移(px) + 定时器间隔(ms)
-// 间隔 16ms ≈ 60fps，保证顺滑
-const EDGE_MOVE_PROFILE = {
-  low: { step: 4, interval: 24 },
-  medium: { step: 8, interval: 16 },
-  high: { step: 14, interval: 10 }
-}
+// 边缘持续移动：定时器间隔(ms)，固定 16ms ≈ 60fps 保证顺滑
+const EDGE_MOVE_INTERVAL = 16
 
 // 模块级状态（由 init 注入）
 let adapter = null
@@ -71,14 +62,17 @@ function computeAccelFactor(speed) {
 }
 
 /**
- * 取滚动灵敏度倍率（垂直/水平分别取对应档位）
+ * 取滚动灵敏度倍率（垂直/水平分别取对应数值，兼容旧字符串档位）
  * @param {'vertical'|'horizontal'} axis
  * @returns {number}
  */
 function scrollMultiplier(axis) {
   const key = axis === 'horizontal' ? 'horizontalScrollSensitivity' : 'verticalScrollSensitivity'
-  const level = (settings && settings[key]) || 'medium'
-  return SCROLL_SENSITIVITY_MULTIPLIER[level] ?? 1.0
+  const val = (settings && settings[key]) ?? 1.0
+  // 兼容旧字符串档位
+  if (typeof val === 'string' && LEGACY_SENSITIVITY[val] != null) return LEGACY_SENSITIVITY[val]
+  const n = Number(val)
+  return Number.isFinite(n) ? n : 1.0
 }
 
 /**
@@ -123,11 +117,19 @@ function stopEdgeMove() {
 function startEdgeMove(direction, speed) {
   // 先停掉旧定时器（同一时刻只允许一个方向）
   stopEdgeMove()
-  const level = (settings && settings.edgeMoveSpeed) || 'medium'
-  const profile = EDGE_MOVE_PROFILE[level] || EDGE_MOVE_PROFILE.medium
+  // 边缘移动速度：直接是每帧像素数（默认8），兼容旧字符串档位
+  const rawSpeed = (settings && settings.edgeMoveSpeed) ?? 8
+  let step
+  if (typeof rawSpeed === 'string' && LEGACY_SENSITIVITY[rawSpeed] != null) {
+    step = LEGACY_SENSITIVITY[rawSpeed] * 8
+  } else {
+    step = Number(rawSpeed)
+  }
+  if (!Number.isFinite(step) || step <= 0) step = 8
+  step = Math.min(20, Math.max(1, step))
   // speed 额外加权（payload.speed 影响持续移动快慢）
   const speedFactor = Number(speed) > 0 ? Math.min(2.0, Number(speed)) : 1.0
-  const step = profile.step * speedFactor
+  step = step * speedFactor
 
   // 计算每帧位移方向
   let dx = 0
@@ -154,7 +156,7 @@ function startEdgeMove(direction, speed) {
     if (!adapter) return
     // edge_move 不再叠加加速度/灵敏度，按 step 直接移动（adapter 仍会乘灵敏度）
     safeRun(adapter.moveMouse(dx, dy), 'edge_move')
-  }, profile.interval)
+  }, EDGE_MOVE_INTERVAL)
 }
 
 /**

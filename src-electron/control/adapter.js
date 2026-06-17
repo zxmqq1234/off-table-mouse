@@ -36,31 +36,23 @@
  * - 即最终位移 = 原始 dx × 加速度(controller) × 灵敏度(adapter)，互不重复。
  */
 
-/** 灵敏度档位 → 倍率（mock 与 nutjs 共用同一套语义） */
-const SENSITIVITY_MULTIPLIER = {
-  low: 0.6,
-  medium: 1.0,
-  high: 1.6
-}
+/** 旧灵敏度档位 → 数值倍率（向后兼容已保存的旧 settings.json） */
+const LEGACY_SENSITIVITY = { low: 0.6, medium: 1.0, high: 1.6 }
 
 /**
- * 解析灵敏度值为标准档位
- * - 字符串 'low'/'medium'/'high' 直接用
- * - 数字按区间映射：<0.8→low, >1.3→high, 其余→medium
+ * 将灵敏度值归一化为数值倍率
+ * - 旧字符串档位 'low'/'medium'/'high' 自动转换为对应倍率
+ * - 数值直接使用，限制在 0.1~3.0 范围
  * @param {string|number} value
- * @returns {'low'|'medium'|'high'}
+ * @returns {number} 数值倍率（如 0.6 / 1.0 / 1.6）
  */
 function normalizeSensitivity(value) {
-  if (typeof value === 'string') {
-    if (SENSITIVITY_MULTIPLIER[value]) return value
-    return 'medium'
+  if (typeof value === 'string' && LEGACY_SENSITIVITY[value] != null) {
+    return LEGACY_SENSITIVITY[value]
   }
-  if (typeof value === 'number' && !Number.isNaN(value)) {
-    if (value < 0.8) return 'low'
-    if (value > 1.3) return 'high'
-    return 'medium'
-  }
-  return 'medium'
+  const n = Number(value)
+  if (!Number.isFinite(n)) return 1.0
+  return Math.min(3.0, Math.max(0.1, n))
 }
 
 /**
@@ -96,7 +88,7 @@ function createInputAdapter(type = 'mock') {
 }
 
 module.exports = {
-  SENSITIVITY_MULTIPLIER,
+  LEGACY_SENSITIVITY,
   normalizeSensitivity,
   createInputAdapter
 }

@@ -5,7 +5,7 @@
   这些功能在 V1 不实现真实能力（PRD 第14节开发边界明确排除）。
 -->
 <script setup>
-defineEmits(['close'])
+const emit = defineEmits(['close'])
 
 // 预留功能清单（PRD 8.8 + 11.3），均置灰不可用
 const reservedFeatures = [
