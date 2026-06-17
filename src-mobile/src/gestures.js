@@ -6,7 +6,7 @@
  *
  * 支持的手势（对应 PRD 第9节）：
  * - 单指：点击 / 双击 / 移动 / 长按 / 长按后拖拽
- * - 双指：双指点击（右键）/ 水平滑动（前进后退）
+ * - 双指：双指点击（右键）/ 双指长按（右键）/ 水平滑动（前进后退）
  * - 三指：水平滑动（任务切换）/ 垂直上滑（回桌面）
  *
  * 多指追踪：用 touch.identifier 区分手指，维护 touches Map。
@@ -40,6 +40,7 @@ function centroid(points) {
  * @param {(dx:number,dy:number)=>void} [callbacks.onDrag] 长按后的拖拽移动
  * @param {()=>void} [callbacks.onDragEnd] 长按拖拽结束（手指抬起，组件据此发 mouse_up）
  * @param {()=>void} [callbacks.onTwoFingerTap] 双指点击（右键）
+ * @param {()=>void} [callbacks.onTwoFingerLongPress] 双指长按（右键；双指落下静止超过 longPressThreshold 触发）
  * @param {(dir:'left'|'right')=>void} [callbacks.onTwoFingerSwipe] 双指水平滑动
  * @param {(dir:'left'|'right'|'up')=>void} [callbacks.onThreeFingerSwipe] 三指滑动
  * @param {object} [settings] 灵敏度 / 阈值设置（见 constants.DEFAULT_SETTINGS）
@@ -64,6 +65,8 @@ export function createGestureRecognizer(callbacks = {}, settings = {}) {
   let longPressTimer = null
   // 是否已进入长按拖拽态
   let longPressActive = false
+  // 双指长按定时器句柄（与单指长按独立，避免相互干扰）
+  let twoFingerLongPressTimer = null
   // 上一次单指 tap 时间戳（双击判定）
   let lastTapTime = 0
   // 多指手势起始质心 { count, x, y, time }；为 null 表示当前无多指会话
@@ -79,10 +82,16 @@ export function createGestureRecognizer(callbacks = {}, settings = {}) {
     if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null }
   }
 
+  /** 清除双指长按定时器 */
+  function clearTwoFingerLongPressTimer() {
+    if (twoFingerLongPressTimer) { clearTimeout(twoFingerLongPressTimer); twoFingerLongPressTimer = null }
+  }
+
   /** 重置所有状态（手指全部离开时调用） */
   function reset() {
     touches.clear()
     clearLongPressTimer()
+    clearTwoFingerLongPressTimer()
     longPressActive = false
     multiStart = null
     gestureDecided = false
@@ -133,6 +142,16 @@ export function createGestureRecognizer(callbacks = {}, settings = {}) {
       if (cfg.enableTwoFingerGesture && !multiStart) {
         multiStart = { count: 2, x: c.x, y: c.y, time: now }
         gestureDecided = false
+        // 启动双指长按定时器：双指落下后静止超过阈值 → 双指长按（右键）
+        clearTwoFingerLongPressTimer()
+        twoFingerLongPressTimer = setTimeout(() => {
+          twoFingerLongPressTimer = null
+          // 仍为双指且本次会话未判定 → 触发双指长按
+          if (touches.size === 2 && multiStart && !gestureDecided) {
+            fire('onTwoFingerLongPress')
+            gestureDecided = true // 互斥：本次会话不再判定 swipe/tap
+          }
+        }, cfg.longPressThreshold)
       }
     } else if (count === 3) {
       // 进入三指：取消单指长按，以三指质心作为滑动基准
@@ -167,6 +186,11 @@ export function createGestureRecognizer(callbacks = {}, settings = {}) {
       // 累计位移判定是否移动过
       const totalDist = Math.hypot(t.clientX - p.startX, t.clientY - p.startY)
       if (totalDist > TAP_MOVE_THRESHOLD) p.moved = true
+
+      // 双指会话期间：任一手指明显移动 → 取消双指长按等待（改判 swipe/tap）
+      if (multiStart && multiStart.count === 2 && p.moved) {
+        clearTwoFingerLongPressTimer()
+      }
 
       // 仅单指会话（无多指）才分发移动 / 拖拽
       if (multiStart === null && touches.size === 1) {
@@ -244,6 +268,8 @@ export function createGestureRecognizer(callbacks = {}, settings = {}) {
 
     // 多指会话：在第一次手指离开时判定手势方向
     if (multiStart) {
+      // 双指会话中手指提前离开 → 取消双指长按等待（长按要求两指持续按住）
+      if (multiStart.count === 2) clearTwoFingerLongPressTimer()
       decideMultiGesture()
     }
 

@@ -104,6 +104,8 @@ const recognizer = createGestureRecognizer({
   onDragEnd: () => props.wsClient.send(upMessage(MouseButton.LEFT)),
   // 双指点击 → 右键
   onTwoFingerTap: () => props.wsClient.send(clickMessage(MouseButton.RIGHT)),
+  // 双指长按 → 右键（与双指点击效果一致）
+  onTwoFingerLongPress: () => props.wsClient.send(clickMessage(MouseButton.RIGHT)),
   // 双指水平滑动 → 前进/后退（电脑端翻译为 Alt+Left/Right）
   onTwoFingerSwipe: (dir) => {
     const g = dir === 'right' ? GestureType.TWO_FINGER_SWIPE_RIGHT : GestureType.TWO_FINGER_SWIPE_LEFT
