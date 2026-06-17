@@ -26,5 +26,9 @@ body {
 
 #app {
   width: 100vw;
+  width: 100dvw;
   height: 100vh;
+  height: 100dvh; /* 适配 iOS Safari 动态视口高度 */
+  /* 禁止双指/双击缩放，配合 meta viewport */
+  touch-action: manipulation;
 }

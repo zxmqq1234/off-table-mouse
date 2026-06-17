@@ -20,6 +20,12 @@ export default defineConfig({
   },
   build: {
     outDir: resolve(__dirname, 'dist-mobile'),
-    emptyOutDir: true
+    emptyOutDir: true,
+    // shared/*.js 为 CommonJS（与 Electron 端共用，不改），
+    // 扩展 rollup commonjs 插件的处理范围，使其识别 shared 的命名导出。
+    commonjsOptions: {
+      include: [/[/\\]shared[/\\]/, /node_modules/],
+      transformMixedEsModules: true
+    }
   }
 })
